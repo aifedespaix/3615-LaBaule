@@ -39,6 +39,8 @@ Le projet privilégie la **performance brute** (60fps stable) et la **Developer 
 
 ## 🎮 Game Design & Mécaniques
 
+> **Voir le document complet :** [GAMEPLAY_RULES.md](./GAMEPLAY_RULES.md) (Règles détaillées, 3C's, Game Feel).
+
 ### La Boucle de Gameplay (The Loop)
 1.  **Connexion (3615) :** Les joueurs se connectent au Lobby (Interface Minitel).
 2.  **Infiltration :** Entrée dans une salle $\rightarrow$ **Verrouillage immédiat** (Portes rouges/Grilles).
@@ -49,7 +51,7 @@ Le projet privilégie la **performance brute** (60fps stable) et la **Developer 
 ### Contrôles
 * **Mouvement :** ZQSD (Déplacement absolu).
 * **Visée :** Souris (Raycast sur plan infini au sol).
-* **Action :** Clic Gauche (Tir), Clic Droit (Interaction/Coup de crosse).
+* **Action :** Clic Gauche (Tir/Frappe), Clic Droit (Lancer d'arme/Ramasser).
 
 ### Ennemis & Comportements (FSM)
 * **Le Touriste (Grunt) :** Patrouille. Fonce sur le joueur si vue dégagée. Arme de corps à corps (batte/couteau).
@@ -91,7 +93,7 @@ Le jeu adapte la carte et la difficulté selon le nombre de joueurs ($N_p$) pré
 | **Taille Salle** | Standard (12x12) | Large (18x18 ou Fusion de 2 standards) |
 | **Ennemis** | Base Count ($X$) | $X \times 1.8$ (Focus sur la saturation) |
 | **Portes** | 1 Entrée / 1 Sortie | Activation de portes latérales (Flanking) |
-| **Loot** | 1 Arme par reward | 2 Armes, mais munitions partagées |
+| **Loot** | 1 Arme par reward | Munitions Individuelles + Friendly Fire |
 
 ---
 
