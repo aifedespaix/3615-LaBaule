@@ -1,7 +1,8 @@
-# 🩸 GAMEPLAY RULES & MECHANICS (Mini-GDD)
+# 🩸 GAMEPLAY RULES & MECHANICS (The Bible)
 
 > **Philosophie :** "Fast, Brutal, Unfair."
 > Ce document définit les règles précises qui transforment un simple shooter top-down en une expérience viscérale.
+> *Ceci est la source de vérité pour toutes les implémentations mathématiques.*
 
 ---
 
@@ -52,28 +53,51 @@ C'est la mécanique de secours et de flow principale.
 
 ## 3. 🥤 Game Feel (The Juice)
 
-C'est la priorité absolue. Le jeu doit "faire mal" visuellement.
+C'est la priorité absolue. Les règles mathématiques ci-dessous sont non-négociables.
 
-### A. Hitstop (Freeze Frame)
-Le jeu se fige pendant quelques millisecondes lors d'un impact impactant.
-*   **Kill Ennemi :** 50ms.
-*   **Mort Joueur :** 100ms (Accentue la brutalité de la mort).
-*   **Explosion :** 80ms.
+### A. Screen Shake (Formula: Trauma²)
+Nous utilisons un système basé sur le "Trauma" (0.0 à 1.0) pour éviter les secousses linéaires et robotiques.
 
-### B. Screen Shake (Secousses)
-La caméra tremble selon l'intensité de l'action.
-*   **Directionnel :** Le recul de l'arme pousse la caméra dans la direction opposée au tir.
-*   **Trauma :** Valeur float (0.0 à 1.0) qui décroît avec le temps (Linear decay).
-    *   *Tir Uzi :* 0.05 per shot.
-    *   *Tir Shotgun :* 0.4 per shot.
-    *   *Explosion :* 1.0.
+*   **Variables :**
+    *   `Trauma`: Float (0.0 - 1.0).
+    *   `MaxAngle`: 10° (Rotation Z de la caméra).
+    *   `MaxOffset`: 15px (Déplacement X/Y).
+    *   `Decay`: 1.2 par seconde (Linear Decay).
+*   **Formule (Exécutée chaque frame) :**
+    ```typescript
+    shake = trauma * trauma; // Quadratique pour plus de "punch"
+    angle = (Math.random() * 2 - 1) * MaxAngle * shake;
+    offsetX = (Math.random() * 2 - 1) * MaxOffset * shake;
+    offsetY = (Math.random() * 2 - 1) * MaxOffset * shake;
 
-### C. Knockback (Recul Physique)
-*   **Corps :** Les ennemis (et joueurs) sont physiquement repoussés par les balles.
-*   **Ragdoll (Simulé) :** À la mort, appliquer une force violente dans la direction du tir fatal. Le corps doit glisser au sol (avec friction et traînée de sang).
+    // Decay
+    trauma = Math.max(0, trauma - Decay * dt);
+    ```
+
+### B. Hitstop (Freeze Frame)
+Le temps (ou juste le rendu) se fige lors d'impacts significatifs.
+
+| Événement | Durée (ms) | Description |
+| :--- | :--- | :--- |
+| **Impact Fists (Light)** | **8ms** | Impact léger corps à corps. |
+| **Impact Batte/Balle** | **12ms** | Impact standard. |
+| **Kill (Standard)** | **40ms** | Mort d'un ennemi basique. |
+| **Kill (Brutal)** | **80ms** | Headshot, Shotgun close-range, ou Boss. |
+| **Mort Joueur** | **150ms** | Souligne l'échec. Laisse le temps au cerveau de réaliser. |
+
+### C. Knockback & "Ice Physics"
+Le recul n'est pas juste une force instantanée, c'est un changement d'état physique.
+
+*   **Formule d'Impact :** `Velocity += ImpactVector * (Force / Mass)`
+*   **Stun & Slide :**
+    *   Quand une entité prend un coup > `Threshold` ou meurt :
+    *   **Friction Normale :** `10.0` (Arrêt rapide).
+    *   **Friction Stun :** `0.5` pendant **0.5 secondes**.
+    *   *Résultat :* Les corps glissent comme sur de la glace.
+*   **Domino Effect :** Un corps qui glisse et percute un autre ennemi doit lui infliger un léger `Stagger` (choc).
 
 ### D. Chromatic Aberration & VFX
-*   Augmente avec le niveau de "Stress" ou de "Trauma" de l'écran.
+*   Augmente avec le niveau de `Trauma` actuel.
 *   Flash blanc très court (1 frame) sur l'écran entier lors d'un kill critique.
 
 ---
@@ -94,4 +118,19 @@ La caméra tremble selon l'intensité de l'action.
 
 ### C. Mort & Revive
 *   **État "Downed" (Optionnel) :** Le joueur rampe, peut être relevé (Rapide, 1s).
-*   **Hardcore Mode :** Mort définitive pour l'étage. Le survivant doit finir seul. (Recommandé pour commencer).
+*   **Hardcore Mode :** Mort définitive pour l'étage. Le survivant doit finir seul.
+
+---
+
+## 5. 🔫 Weapon Data (The Arsenal)
+
+Valeurs de référence pour l'équilibrage (Gameplay Loop).
+*   **HP Ennemi Standard (Grunt) :** 100 PV.
+
+| Arme | Type | Dégâts | Fire Rate | Munitions | Knockback (Force) | Screen Shake (Trauma Add) | Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **FISTS (Unarmed)** | Melee | **34** (3 hits kill) | **250ms** | ∞ | **25** (High) | **0.05** | État par défaut. Hitbox courte. |
+| **BATTE** | Melee | **100** (1 hit kill) | **600ms** | Durabilité | **50** (X-High) | **0.30** | Large arc de cercle. |
+| **PISTOL** | Semi | **50** (2 hits kill) | **400ms** | 12 | **15** | **0.15** | Précis. |
+| **UZI** | Auto | **30** (4 hits kill) | **90ms** | 32 | **5** (Low) | **0.04** | Spray & Pray. Accumule vite le Trauma. |
+| **SHOTGUN** | Burst | **15 x 8** (120 tot) | **1000ms** | 6 | **10** (x8) | **0.50** | Le roi du "Game Feel". Disperse les foules. |
