@@ -114,20 +114,25 @@ Pour garantir la fluidité réseau, nous n'utilisons **PAS** de moteur physique 
 
 ---
 
-## 📡 Protocole Réseau
+## 📡 Protocole Réseau & Netcode
 
-**Modèle :** Serveur Autoritaire / Client Prédicteur.
+> **Documentation Technique :** Voir [NETCODE_SPECS.md](./NETCODE_SPECS.md) pour les schémas binaires et algorithmes détaillés.
 
-### Serveur (Bun)
-* Tourne à **30 Tickrate**.
-* Reçoit les inputs : \`{ x, y, angle, trigger }\`.
-* Envoie le WorldState : \`{ players: [], enemies: [], bullets: [] }\`.
-* *Optimisation :* Utilisation de buffers binaires (si nécessaire) ou JSON minifié.
+L'architecture réseau est conçue pour supporter un gameplay rapide et précis (Shooter), sans compromis sur la sécurité (Anti-Cheat).
 
-### Client (React)
-* **Interpolation :** Les entités distantes sont affichées avec un léger buffer (50-100ms) pour être lisses.
-* **Prédiction :** Le joueur local bouge *immédiatement*.
-* **Reconciliation :** Si le serveur renvoie une position trop différente (> seuil), le client se téléporte doucement vers la position serveur.
+### Architecture Hybride
+*   **Modèle :** Serveur Autoritaire (Bun) / Client Prédicteur (React).
+*   **Transport :** WebSockets (Binary ArrayBuffers).
+*   **Tickrate :** 30Hz (Serveur) / 60Hz+ (Client Rendu).
+
+### Optimisations Clés
+*   **Schéma Binaire :** Pas de JSON. Utilisation de paquets binaires compacts (`UInt8`, `Int16` Fixed-Point).
+    *   *Position :* Précision au centimètre (-327.68m à +327.67m).
+    *   *Rotation :* Précision angulaire `UInt16`.
+*   **Latence & Lag Compensation :**
+    *   **Prédiction :** Le client simule ses propres mouvements instantanément (Zero Input Lag).
+    *   **Reconciliation :** En cas de désaccord, le client re-simule ses inputs (Replay) pour corriger sa position sans "teleport" visuel brutal.
+    *   **Interpolation :** Les ennemis et alliés sont interpolés avec un buffer de 100ms pour fluidifier les mouvements malgré le Jitter.
 
 ---
 
