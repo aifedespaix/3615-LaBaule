@@ -139,14 +139,17 @@ L'architecture réseau est conçue pour supporter un gameplay rapide et précis 
 
 ## 🎨 UI/UX & Art Direction
 
-### Charte Graphique "3615"
-* **Palette :** Noir profond (Background), Cyan (Murs), Magenta (Ennemis), Jaune (Balles), Rouge (Sang/Lock).
-* **Effets :** Scanlines CRT, Chromatic Aberration légère, Bloom sur les néons.
-* **Font :** Polices "Pixel" ou "VCR OSD Mono".
+> **Guidelines Complètes :** Voir [UI_UX_GUIDELINES.md](./UI_UX_GUIDELINES.md) pour la charte graphique, les animations, et le sound design.
+
+### Philosophie "Néo-Rétro"
+Nous ne faisons pas de l'émulation stricte, mais une stylisation moderne du souvenir Minitel.
+*   **Palette :** 8 Couleurs Vidéotex pures (Cyan, Magenta, Jaune...) sublimées par du Bloom.
+*   **Immersion :** Séquence de boot avec son modem V.23, affichage caractère par caractère.
+*   **HUD :** Structure en bandeau (Haut/Bas) mais cœur de l'écran transparent pour le combat.
 
 ### Interface (Shadcn)
-* L'UI est rendue en HTML/CSS via Tailwind au-dessus du Canvas WebGL.
-* Dialogues style Minitel (Caractères qui s'affichent un par un, curseur clignotant).
+*   **Structure :** L'UI est rendue en HTML/CSS via Tailwind au-dessus du Canvas WebGL.
+*   **Terminologie :** Utilisation des touches Minitel (`ENVOI`, `CORRECTION`, `CONNEXION`, `SUITE`).
 
 ---
 
