@@ -15,9 +15,10 @@
 6. [Protocole Réseau](#-protocole-réseau)
 7. [UI/UX & Art Direction](#-uiux--art-direction)
 8. [Data & Assets](#-data--assets)
-9. [DevOps & Déploiement](#-devops--déploiement)
-10. [Structure du Code](#-structure-du-code)
-11. [Instructions pour Agents (AI)](#-instructions-pour-agents-ai)
+9. [Graphics & Optimization](#-graphics--optimization)
+10. [DevOps & Déploiement](#-devops--déploiement)
+11. [Structure du Code](#-structure-du-code)
+12. [Instructions pour Agents (AI)](#-instructions-pour-agents-ai)
 
 ---
 
@@ -172,6 +173,23 @@ type WeaponConfig = {
 ### Sound Design
 * **Musique :** Synthwave sombre. **Ne coupe pas au Respawn**.
 * **Spatialisation :** \`PositionalAudio\` (Three.js) pour localiser les ennemis au son.
+
+---
+
+## 🖌 Graphics & Optimization
+
+> **Détails Techniques :** Voir [GRAPHICS_SPECS.md](./GRAPHICS_SPECS.md).
+
+### 1. Asset Pipeline (Web Standard)
+*   **Compression :** TOUS les modèles doivent utiliser **Draco Compression** (via `gltf-pipeline`). Les textures doivent être au format **KTX2**.
+*   **Lighting :**
+    *   **Map :** Lightmaps "Bakeées" (Textures UV2). Pas de lumières dynamiques.
+    *   **Objets :** Blob Shadows (Ombres pré-calculées simples). Pas de Shadow Maps temps réel.
+*   **Material :** Utilisation stricte de `MeshBasicMaterial` ou `MeshLambertMaterial`. Le PBR (`MeshStandardMaterial`) est proscrit pour garantir les performances.
+
+### 2. Post-Processing "Minitel"
+*   Shader Custom CRT (Scanlines + Courbure + Aberration Chromatique).
+*   Implémenté via `@react-three/postprocessing`.
 
 ---
 
