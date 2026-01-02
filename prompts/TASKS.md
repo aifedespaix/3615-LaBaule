@@ -51,23 +51,43 @@ Create a robust Asset Pipeline script to optimize 3D models for WebGL.
 
 ## ⚙️ Phase 1: Core Engine (Client-Side Physics)
 
-### 1.1 Input & Movement Physics
+### 1.1 Universal Input System & Architecture
 ```text
-Implement the Core Character Controller.
+Act as a Lead Gameplay Programmer.
 
-**Context:** This is a top-down shooter. We need "Slippery" movement physics, not instant snap.
+Implement the Input Management System for '3615 LA BAULE'. It must be device-agnostic, fully remappable, and persistent.
 
-**Specs (from GAMEPLAY_RULES.md):**
-1. **Input:** ZQSD (Absolute movement).
-2. **Physics:**
-   - Custom implementation (No heavy physics engine).
-   - `Velocity += Acceleration * dt`.
-   - `Velocity *= Friction` (Friction = 0.85 per frame approx, tune for ~150ms slide).
-   - **Collision:** Circle (Player) vs AABB (Walls).
-3. **Camera:** Top-down orthographic or high FOV perspective.
-   - Implement "Look Ahead": Camera position = `Lerp(PlayerPos, MousePos, 0.3)`.
+1. Data Architecture (Zustand Store)
+Create a store `useInputStore` that manages:
+- `actions`: Real-time current state (e.g., `{ move: [0, 1], shoot: true }`).
+- `bindings`: Key configuration. Structure:
+  ```typescript
+  type Bindings = {
+    MOVE_UP: { keyboard: 'KeyW', gamepad: 'LeftStickUp', touch: 'VirtualStick' },
+    SHOOT: { keyboard: 'MouseLeft', gamepad: 'TriggerRight', touch: 'TapRight' },
+    // ...
+  }
+  ```
+- `device`: The active device ('KEYBOARD' | 'GAMEPAD' | 'TOUCH') to adapt the UI (e.g., show 'A' or 'Left Click').
 
-**Task:** Create the `PlayerController` component in R3F. rigid bodies are NOT allowed. Use simple math in `useFrame`.
+2. Normalization (The Loop)
+Create a Hook `useInputSystem` that runs inside `useFrame` (R3F):
+- It combines Event Listeners (Keyboard) and Polling (Gamepad).
+- It normalizes vectors (Analog stick and WASD must both yield a normalized Vector between -1 and 1).
+- It handles Deadzones for gamepads (e.g., 0.1).
+
+3. Configuration Interface (UI)
+Create a React component `SettingsMenu.tsx` (Shadcn/Minitel style):
+- Displays the list of actions.
+- Allows clicking an action to activate "Listening" mode (waiting for input).
+- Handles conflicts (e.g., assigning 'E' to shoot when it was interact swaps or alerts).
+- "Reset to Default" button.
+
+4. Technical Constraints
+- Use the `navigator.getGamepads()` API.
+- For touch, plan for `nipple.js` integration or a custom Virtual Joystick implementation.
+- Automatic save to `localStorage` on every change.
+- Produce files: `src/stores/inputStore.ts`, `src/hooks/useInputSystem.ts`, and `src/components/ui/SettingsMenu.tsx`.
 ```
 
 ### 1.2 Sound Manager Architecture
