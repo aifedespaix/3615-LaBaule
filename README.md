@@ -29,7 +29,7 @@ Le projet privilégie la **performance brute** (60fps stable) et la **Developer 
 | Scope | Technologie | Justification |
 | :--- | :--- | :--- |
 | **Runtime / Serveur** | **Bun** | Démarrage instantané, WebSockets natifs ultra-rapides, TypeScript natif. |
-| **Frontend Framework** | **React 19** | Gestion de l'UI (Menus, HUD) et structure de l'app. |
+| **Frontend Framework** | **Next.js 16.x** | App Router, Server Components, et structure de l'app. |
 | **Moteur 3D** | **React Three Fiber (R3F)** | Rendu WebGL déclaratif. Gestion du cycle de vie des objets. |
 | **Optimisation 3D** | **@react-three/drei** | Utilisation massive de \`<Instances />\` pour murs/balles. |
 | **UI Overlay** | **Shadcn/ui + Tailwind** | Interface vectorielle propre par-dessus le Canvas. |
@@ -206,7 +206,7 @@ FROM oven/bun:1
 WORKDIR /app
 COPY . .
 RUN bun install
-RUN bun run build:client
+RUN bun run build
 EXPOSE 3000
 CMD ["bun", "run", "server/index.ts"]
 \`\`\`
@@ -226,13 +226,13 @@ CMD ["bun", "run", "server/index.ts"]
 │   ├── game.ts             # Game Loop & State Logic
 │   └── rooms.ts            # ProcGen Algorithms
 │
-├── /client                 # FRONTEND (Vite + React)
-│   ├── /src
-│   │   ├── /components
-│   │   │   ├── /game       # R3F Components (Player, Level, Bullets)
-│   │   │   └── /ui         # HTML Overlay (HUD, Menus)
-│   │   ├── /stores         # Zustand (Global State)
-│   │   └── /hooks          # Custom Hooks (useKeyboard, useSocket)
+├── /src                    # FRONTEND (Next.js App)
+│   ├── /app                # App Router ((game), (platform))
+│   ├── /components
+│   │   ├── /game           # R3F Components (Player, Level, Bullets)
+│   │   └── /ui             # HTML Overlay (HUD, Menus)
+│   ├── /stores             # Zustand (Global State)
+│   └── /hooks              # Custom Hooks (useKeyboard, useSocket)
 │
 ├── /shared                 # CODE PARTAGÉ (Single Source of Truth)
 │   ├── types.ts            # Interfaces TS
