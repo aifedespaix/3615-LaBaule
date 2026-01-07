@@ -15,7 +15,7 @@ Act as a Senior Fullstack Engineer. Initialize the project repository with the f
 1. **Runtime:** Bun (Latest).
 2. **Monorepo Structure:**
    - `/server`: Bun native WebSocket server.
-   - `/client`: Vite + React 19 + TypeScript.
+   - `/src`: Next.js 16.x (App Router) + TypeScript.
    - `/shared`: Shared TypeScript types and constants (symlinked or workspace).
 3. **Frontend Dependencies:**
    - `three`, `@types/three`, `@react-three/fiber`, `@react-three/drei`.
@@ -36,7 +36,7 @@ Create a robust Asset Pipeline script to optimize 3D models for WebGL.
 **Requirements:**
 1. Create a script `scripts/optimize-assets.ts` (runnable via `bun run optimize`).
 2. Input Directory: `./raw-assets` (should be gitignored).
-3. Output Directory: `./client/public/assets`.
+3. Output Directory: `./public/assets`.
 4. **Tools:** Use `@gltf-transform/cli` or API.
 5. **Process:**
    - Convert `.gltf` / `.glb` to **Draco Compressed** GLB.

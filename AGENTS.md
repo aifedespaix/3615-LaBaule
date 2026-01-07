@@ -38,7 +38,7 @@ You must adhere to these rules with zero tolerance for deviation. Performance is
 Do not install unapproved libraries.
 
 *   **Runtime:** Bun (Strict usage of `bun install`, `bun run`).
-*   **Frontend:** React 19 + Vite + React Three Fiber (R3F).
+*   **Frontend:** Next.js 16.x (App Router) + React Three Fiber (R3F).
 *   **Backend:** Bun Native WebSockets (No Socket.io, No Express).
 *   **State Management:** Zustand (Global), Refs (Local/Performance).
 *   **Linting/Formatting:** Biome.
@@ -57,10 +57,12 @@ Maintain this structure rigidly.
 *   **`server/`** (Authority)
     *   `src/rooms/`: Game logic and room management.
     *   `src/entities/`: Server-side entity logic.
-*   **`client/`** (Renderer)
-    *   `src/components/game/`: R3F components.
-    *   `src/components/ui/`: HTML/Shadcn overlays.
-    *   `src/systems/`: Input managers, Audio managers.
+*   **`src/`** (Frontend Application)
+    *   `app/(game)/`: Fullscreen immersive game route.
+    *   `app/(platform)/`: UI-heavy routes (Menus, Lobby).
+    *   `components/game/`: R3F components.
+    *   `components/ui/`: HTML/Shadcn overlays.
+    *   `systems/`: Input managers, Audio managers.
 
 ---
 
