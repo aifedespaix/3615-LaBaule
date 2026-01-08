@@ -1,8 +1,9 @@
 {
   "name": "3615-la-baule",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "server",
+    "shared",
+    "src"
   ],
   "trustedDependencies": [
     "@biomejs/biome"
