@@ -36,7 +36,7 @@ Create a robust Asset Pipeline script to optimize 3D models for WebGL.
 **Requirements:**
 1. Create a script `scripts/optimize-assets.ts` (runnable via `bun run optimize`).
 2. Input Directory: `./raw-assets` (should be gitignored).
-3. Output Directory: `./public/assets`.
+3. Output Directory: `./src/public/assets`.
 4. **Tools:** Use `@gltf-transform/cli` or API.
 5. **Process:**
    - Convert `.gltf` / `.glb` to **Draco Compressed** GLB.
@@ -102,7 +102,7 @@ Implement the Global Sound Architecture.
 1. **Global Store:** `useSoundStore` (Zustand) to manage Volume/Mute.
 2. **Music Manager:** A non-rendering component (or outside Canvas) using `howler.js` for BGM loops.
 3. **SFX:** Use R3F `<PositionalAudio />` (WebAudio API) for in-game sounds (Gunshots, Footsteps).
-4. **Assets:** Setup a placeholder `assets/sounds/` folder.
+4. **Assets:** Setup a placeholder `src/public/assets/sounds/` folder.
 
 **Deliverable:** A `SoundManager` system where I can call `playSound('shoot', position)` and `playMusic('synthwave_track_1')`.
 ```
