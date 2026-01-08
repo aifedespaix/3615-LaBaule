@@ -1,0 +1,9 @@
+{
+  "name": "@3615/server",
+  "version": "0.0.0",
+  "module": "index.ts",
+  "type": "module",
+  "dependencies": {
+    "@3615/shared": "../shared"
+  }
+}
