@@ -1,9 +1,9 @@
-import GameClient from "./GameClient";
+import ClientGame from "./ClientGame";
 
 export default function Home() {
   return (
     <main className="w-full h-screen bg-black">
-      <GameClient />
+      <ClientGame />
     </main>
   );
 }
