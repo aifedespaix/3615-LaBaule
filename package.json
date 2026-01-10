@@ -10,7 +10,17 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
-    "@types/bun": "latest"
+    "@gltf-transform/cli": "^4.3.0",
+    "@gltf-transform/core": "^4.3.0",
+    "@gltf-transform/extensions": "^4.3.0",
+    "@gltf-transform/functions": "^4.3.0",
+    "@types/bun": "latest",
+    "chokidar": "^5.0.0",
+    "draco3d": "^1.5.7",
+    "sharp": "^0.34.5"
+  },
+  "scripts": {
+    "optimize": "bun run scripts/optimize-assets.ts"
   },
   "module": "index.ts",
   "type": "module",
