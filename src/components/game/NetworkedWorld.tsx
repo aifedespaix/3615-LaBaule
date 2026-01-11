@@ -270,7 +270,7 @@ function TracerRenderer({ tracersRef }: { tracersRef: React.MutableRefObject<Tra
 
 // Simple Line Component
 function Line({ startX, startY, endX, endY, color }: { startX: number, startY: number, endX: number, endY: number, color: string }) {
-    const ref = useRef<any>();
+    const ref = useRef<any>(null);
 
     useFrame(() => {
        if (ref.current) {
@@ -291,9 +291,7 @@ function Line({ startX, startY, endX, endY, color }: { startX: number, startY: n
             <bufferGeometry>
                 <bufferAttribute
                     attach="attributes-position"
-                    count={2}
-                    array={new Float32Array([startX, 0.5, startY, endX, 0.5, endY])}
-                    itemSize={3}
+                    args={[new Float32Array([startX, 0.5, startY, endX, 0.5, endY]), 3]}
                 />
             </bufferGeometry>
             <lineBasicMaterial color={color} linewidth={2} />
