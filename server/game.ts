@@ -42,7 +42,8 @@ export class Game {
       hp: 100,
       weapon: WeaponType.PISTOL,
       ammo: WEAPONS[WeaponType.PISTOL].ammoMax,
-      status: 0
+      status: 0,
+      score: 0
     };
 
     this.players.set(id, player);

@@ -1,6 +1,6 @@
 $ concurrently "bun run --cwd server dev" "bun run --cwd src dev"
-[1] $ next dev
 [0] $ bun run --watch index.ts
+[1] $ next dev
 [0] Dungeon generated in 2 attempts.
 [0] Generated Level with 15 rooms
 [0] Server listening on port 3001
@@ -16,9 +16,14 @@ $ concurrently "bun run --cwd server dev" "bun run --cwd src dev"
 [1] - Network:       http://192.168.0.2:3000
 [1]
 [1] ✓ Starting...
-[1] ✓ Ready in 2.9s
+[1] Attention: Next.js now collects completely anonymous telemetry regarding usage.
+[1] This information is used to shape Next.js' roadmap and prioritize features.
+[1] You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+[1] https://nextjs.org/telemetry
+[1]
+[1] ✓ Ready in 1034ms
 [1] ○ Compiling / ...
-[1]  GET / 200 in 11.1s (compile: 10.6s, render: 579ms)
-[1]  GET / 200 in 70ms (compile: 6ms, render: 63ms)
+[1]  GET / 200 in 2.2s (compile: 1633ms, render: 534ms)
 [1]  GET / 200 in 68ms (compile: 11ms, render: 57ms)
-[1]  GET / 200 in 181ms (compile: 40ms, render: 140ms)
+[1]  GET / 200 in 71ms (compile: 12ms, render: 59ms)
+[1]  GET / 200 in 422ms (compile: 78ms, render: 344ms)
