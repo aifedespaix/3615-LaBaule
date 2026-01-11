@@ -3,6 +3,8 @@ import { readClientInput, writeSnapshot, WorldSnapshot, PlayerState, EntityState
 import { PacketType } from "../shared/netcode/opcodes";
 import { applyInput } from "../shared/physics";
 import { TICK_RATE, TICK_DT } from "../shared/config/constants";
+import { generateDungeon } from "./dungeon";
+import { LevelData } from "../shared/level";
 
 // --- Types ---
 
@@ -19,6 +21,16 @@ let nextPlayerId = 1;
 const players: Map<ServerWebSocket<ClientData>, PlayerState> = new Map();
 // Simple entity list for now (empty)
 const entities: EntityState[] = [];
+
+// Generate Level
+let levelData: LevelData;
+try {
+  levelData = generateDungeon();
+  console.log(`Generated Level with ${levelData.rooms.length} rooms`);
+} catch (e) {
+  console.error("Failed to generate level:", e);
+  process.exit(1);
+}
 
 let serverTick = 0;
 
@@ -134,6 +146,18 @@ const server = Bun.serve<ClientData>({
       view.setUint8(0, PacketType.HANDSHAKE);
       view.setUint8(1, id);
       ws.send(buffer);
+
+      // Send Level Data
+      // Opcode (1 byte) + JSON string
+      const json = JSON.stringify(levelData);
+      const encoder = new TextEncoder();
+      const payload = encoder.encode(json);
+
+      const levelBuffer = new Uint8Array(1 + payload.length);
+      levelBuffer[0] = PacketType.LEVEL_DATA;
+      levelBuffer.set(payload, 1);
+
+      ws.send(levelBuffer);
     },
     message(ws, message) {
       if (message instanceof ArrayBuffer || message instanceof Uint8Array) {
