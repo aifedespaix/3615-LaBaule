@@ -13,6 +13,7 @@ import { WEAPONS, WeaponType } from "@3615/shared/weapons";
 import { raycast } from "@3615/shared/physics";
 import { CollisionHelper } from "@3615/shared/map/collision";
 import { useLevelStore } from "../../stores/levelStore";
+import { GoreSystem, GoreSystemHandle } from "./GoreSystem";
 
 interface Tracer {
   id: string;
@@ -33,6 +34,7 @@ export function NetworkedWorld() {
   // Refs for meshes to update them without React re-renders (Performance)
   const localPlayerRef = useRef<THREE.Mesh>(null);
   const remotePlayersGroupRef = useRef<THREE.Group>(null);
+  const goreRef = useRef<GoreSystemHandle>(null);
 
   // Tracers State (Local visual only)
   const tracersRef = useRef<Tracer[]>([]);
@@ -183,6 +185,11 @@ export function NetworkedWorld() {
              // Play Sound
              playSound('shoot' as SoundKey, [startX, 0, startY]);
         }
+
+        // Trigger Gore on HIT_ENEMY
+        if (evt.type === GameEventType.HIT_ENEMY) {
+          goreRef.current?.addSplatter(evt.endX, evt.endY);
+        }
     }
 
     // Clean up old tracers
@@ -227,6 +234,9 @@ export function NetworkedWorld() {
 
       {/* Remote Players (Red) - Managed by ref */}
       <group ref={remotePlayersGroupRef} />
+
+      {/* Gore System */}
+      <GoreSystem ref={goreRef} />
 
       {/* Tracers */}
       <TracerRenderer tracersRef={tracersRef} />
