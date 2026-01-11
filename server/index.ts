@@ -1,10 +1,13 @@
 import { ServerWebSocket } from "bun";
-import { readClientInput, writeSnapshot, WorldSnapshot, PlayerState, EntityState, CLIENT_INPUT_SIZE, SNAPSHOT_HEADER_SIZE, PLAYER_STATE_SIZE, ENTITY_STATE_SIZE } from "../shared/netcode/schema";
-import { PacketType } from "../shared/netcode/opcodes";
-import { applyInput } from "../shared/physics";
+import { readClientInput, writeSnapshot, writeGameEvent, WorldSnapshot, PlayerState, EntityState, CLIENT_INPUT_SIZE, SNAPSHOT_HEADER_SIZE, PLAYER_STATE_SIZE, ENTITY_STATE_SIZE, GAME_EVENT_SIZE } from "../shared/netcode/schema";
+import { PacketType, GameEventType } from "../shared/netcode/opcodes";
+import { applyInput, raycast, raycastEntities } from "../shared/physics";
 import { TICK_RATE, TICK_DT } from "../shared/config/constants";
 import { generateDungeon } from "./dungeon";
 import { LevelData } from "../shared/level";
+import { WEAPONS, WeaponType } from "../shared/weapons";
+import { InputMask } from "../shared/netcode/masks";
+import { CollisionHelper } from "../shared/map/collision";
 
 // --- Types ---
 
@@ -12,6 +15,7 @@ interface ClientData {
   id: number;
   inputQueue: { tick: number; inputMask: number; mouseAngle: number }[];
   lastProcessedTick: number;
+  lastFireTime: number; // Timestamp of last shot
 }
 
 // --- Game State ---
@@ -24,8 +28,10 @@ const entities: EntityState[] = [];
 
 // Generate Level
 let levelData: LevelData;
+let collisionHelper: CollisionHelper;
 try {
   levelData = generateDungeon();
+  collisionHelper = new CollisionHelper(levelData);
   console.log(`Generated Level with ${levelData.rooms.length} rooms`);
 } catch (e) {
   console.error("Failed to generate level:", e);
@@ -47,29 +53,91 @@ function getNextPlayerId(): number | null {
 
 setInterval(() => {
   serverTick++;
+  const now = Date.now();
 
   // 1. Process Inputs for this tick
   for (const [ws, player] of players) {
     const data = ws.data;
     const queue = data.inputQueue;
 
-    // Find input for current tick (or closest)
-    // In a real de-jitter buffer, we'd be more sophisticated.
-    // Here, we just pop the oldest input if it exists, or reuse last.
-
-    // Simple Strategy for Prototype:
-    // Process ALL pending inputs up to a certain limit?
-    // No, standard Server Authority processes ONE step per Server Tick.
-    // We should look for the input that matches `serverTick` roughly?
-    // Actually, clients send inputs stamped with *their* predicted tick.
-    // The server just processes "next available input" in sequence.
-
-    // Let's just consume one input from the queue if available.
     if (queue.length > 0) {
       const input = queue.shift()!; // Get oldest
       applyInput(player, input.inputMask, TICK_DT);
       player.angle = input.mouseAngle;
-      // data.lastProcessedTick = input.tick; // Store for ack?
+
+      // Weapon Logic
+      if (input.inputMask & InputMask.SHOOT) {
+          const weapon = WEAPONS[player.weapon as WeaponType];
+
+          // Check Cooldown
+          if (now - data.lastFireTime >= weapon.fireRate) {
+              // Check Ammo
+              if (player.ammo > 0) {
+                  data.lastFireTime = now;
+                  player.ammo--;
+
+                  // Fire Raycast(s)
+                  const startX = player.x;
+                  const startY = player.y;
+
+                  // Calculate direction vector from angle
+                  const dirX = Math.cos(player.angle);
+                  const dirY = Math.sin(player.angle);
+
+                  // 1. Check Walls
+                  const wallHit = raycast(startX, startY, dirX, dirY, weapon.range, collisionHelper);
+                  let maxDist = weapon.range;
+                  let endX = startX + dirX * maxDist;
+                  let endY = startY + dirY * maxDist;
+                  let eventType = GameEventType.SHOOT;
+
+                  if (wallHit) {
+                      maxDist = wallHit.distance;
+                      endX = wallHit.x;
+                      endY = wallHit.y;
+                      eventType = GameEventType.HIT_WALL;
+                  }
+
+                  // 2. Check Entities (Players + Enemies)
+                  // Construct target list from all OTHER players
+                  const targets = Array.from(players.values()).filter(p => p.id !== player.id);
+                  // Add entities (enemies) later when implemented
+
+                  const entHit = raycastEntities(startX, startY, dirX, dirY, maxDist, targets);
+
+                  if (entHit) {
+                      endX = entHit.x;
+                      endY = entHit.y;
+                      eventType = GameEventType.HIT_ENEMY;
+
+                      // Apply Damage
+                      const targetPlayer = players.get(
+                          Array.from(players.keys()).find(key => players.get(key)?.id === entHit.entity.id)!
+                      );
+
+                      if (targetPlayer) {
+                          targetPlayer.hp = Math.max(0, targetPlayer.hp - weapon.damage);
+                          // TODO: Handle Death
+                      }
+                  }
+
+                  // Broadcast Game Event
+                  const eventBuffer = new ArrayBuffer(GAME_EVENT_SIZE);
+                  const eventView = new DataView(eventBuffer);
+                  writeGameEvent(eventView, 0, {
+                      type: eventType,
+                      sourceId: player.id,
+                      weaponId: player.weapon,
+                      endX: endX,
+                      endY: endY
+                  });
+
+                  for (const [client] of players) {
+                      client.send(eventBuffer);
+                  }
+              }
+          }
+      }
     }
   }
 
@@ -107,7 +175,8 @@ const server = Bun.serve<ClientData>({
       data: {
         id: 0, // Placeholder, assigned on open
         inputQueue: [],
-        lastProcessedTick: 0
+        lastProcessedTick: 0,
+        lastFireTime: 0
       }
     });
     return success ? undefined : new Response("Upgrade failed", { status: 500 });
@@ -129,7 +198,9 @@ const server = Bun.serve<ClientData>({
         x: 0,
         y: 0,
         angle: 0,
-        hp: 100
+        hp: 100,
+        weapon: WeaponType.PISTOL, // Default weapon
+        ammo: WEAPONS[WeaponType.PISTOL].ammoMax
       });
 
       // We could send a "Welcome" packet here with their ID,
