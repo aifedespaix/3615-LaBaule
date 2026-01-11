@@ -19,6 +19,8 @@ export interface WeaponConfig {
   trauma: number; // Screen shake trauma per shot
   range: number; // Max distance in meters
   projectileCount: number; // Number of rays per shot (e.g. 1 for Pistol, 8 for Shotgun)
+  throwDamage: number;
+  throwSpeed: number; // Meters per second
 }
 
 export const WEAPONS: Record<WeaponType, WeaponConfig> = {
@@ -33,6 +35,8 @@ export const WEAPONS: Record<WeaponType, WeaponConfig> = {
     trauma: 0.05,
     range: 1.5, // Melee range
     projectileCount: 1,
+    throwDamage: 0, // Can't throw fists
+    throwSpeed: 0,
   },
   [WeaponType.BAT]: {
     name: "BAT",
@@ -44,9 +48,9 @@ export const WEAPONS: Record<WeaponType, WeaponConfig> = {
     spread: 0.5, // Arc
     trauma: 0.30,
     range: 2.0,
-    projectileCount: 1, // Or a sweep? Raycast sweep simulated as one wide ray or multiple?
-                        // For raycast implementation, melee might just be a short thick ray or box.
-                        // We will use 1 ray for now with logic handling.
+    projectileCount: 1,
+    throwDamage: 100, // Lethal
+    throwSpeed: 15.0,
   },
   [WeaponType.PISTOL]: {
     name: "PISTOL",
@@ -59,6 +63,8 @@ export const WEAPONS: Record<WeaponType, WeaponConfig> = {
     trauma: 0.15,
     range: 20.0,
     projectileCount: 1,
+    throwDamage: 10,
+    throwSpeed: 20.0,
   },
   [WeaponType.UZI]: {
     name: "UZI",
@@ -71,6 +77,8 @@ export const WEAPONS: Record<WeaponType, WeaponConfig> = {
     trauma: 0.04,
     range: 15.0,
     projectileCount: 1,
+    throwDamage: 10,
+    throwSpeed: 22.0,
   },
   [WeaponType.SHOTGUN]: {
     name: "SHOTGUN",
@@ -83,5 +91,7 @@ export const WEAPONS: Record<WeaponType, WeaponConfig> = {
     trauma: 0.50,
     range: 12.0,
     projectileCount: 8,
+    throwDamage: 10, // Throwing the gun deals 10 damage, not 15 (pellet)
+    throwSpeed: 18.0,
   },
 };

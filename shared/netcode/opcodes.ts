@@ -10,5 +10,8 @@ export enum GameEventType {
   SHOOT = 1,
   HIT_ENEMY = 2,
   HIT_WALL = 3,
-  // Add more as needed
+}
+
+export enum EntityType {
+  PROJECTILE = 1,
 }

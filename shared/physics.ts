@@ -2,10 +2,12 @@ import { InputMask } from './netcode/masks';
 import { PLAYER_SPEED, TILE_SIZE, ENTITY_RADIUS } from './config/constants';
 import { LevelData } from './level';
 import { CollisionHelper } from './map/collision';
+import { Status } from './netcode/schema';
 
 interface MovableEntity {
   x: number;
   y: number;
+  status?: number; // Optional status for stun check
 }
 
 interface TargetEntity {
@@ -23,6 +25,11 @@ interface TargetEntity {
  * @param dt Delta time in seconds (should be fixed 1/30 for network ticks)
  */
 export function applyInput(entity: MovableEntity, inputMask: number, dt: number): void {
+  // If Stunned, do not move
+  if (entity.status && (entity.status & Status.STUNNED)) {
+    return;
+  }
+
   let dx = 0;
   let dy = 0;
 
@@ -52,6 +59,15 @@ export function applyInput(entity: MovableEntity, inputMask: number, dt: number)
 
   // No collision checking against walls yet (Infinite Plane)
   // TODO: Add collision checking using CollisionHelper if needed for movement
+}
+
+/**
+ * Checks for Circular Collision between two entities.
+ */
+export function checkCircleCollision(x1: number, y1: number, r1: number, x2: number, y2: number, r2: number): boolean {
+  const distSq = (x1 - x2) ** 2 + (y1 - y2) ** 2;
+  const radSum = r1 + r2;
+  return distSq < radSum * radSum;
 }
 
 /**

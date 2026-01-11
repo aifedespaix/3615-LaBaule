@@ -1,7 +1,7 @@
 import { LevelData } from '../level';
-import { TEMPLATES } from './maps/templates/registry';
-import { ROOM_SIZE } from './maps/constants';
-import { TileType } from './maps/types';
+import { TEMPLATES } from '../maps/templates/registry';
+import { ROOM_SIZE } from '../maps/constants';
+import { TileType } from '../maps/types';
 
 export class CollisionHelper {
   private roomMap: Map<string, string>; // "x,y" (grid coords) -> templateId
