@@ -1,5 +1,5 @@
-import { RoomTemplate } from '../types.js';
-import { _, W, D } from '../constants.js';
+import { RoomTemplate } from '../types';
+import { _, W, D } from '../constants';
 
 export const START_ROOM: RoomTemplate = {
   id: 'start_room',
