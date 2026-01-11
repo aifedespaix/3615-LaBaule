@@ -1,0 +1,24 @@
+$ concurrently "bun run --cwd server dev" "bun run --cwd src dev"
+[1] $ next dev
+[0] $ bun run --watch index.ts
+[0] Dungeon generated in 2 attempts.
+[0] Generated Level with 15 rooms
+[0] Server listening on port 3001
+[1] ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+[1]  We detected multiple lockfiles and selected the directory of /app/bun.lockb as the root directory.
+[1]  To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+[1]    See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+[1]  Detected additional lockfiles:
+[1]    * /app/src/bun.lockb
+[1]
+[1] ▲ Next.js 16.1.1 (Turbopack)
+[1] - Local:         http://localhost:3000
+[1] - Network:       http://192.168.0.2:3000
+[1]
+[1] ✓ Starting...
+[1] ✓ Ready in 2.9s
+[1] ○ Compiling / ...
+[1]  GET / 200 in 11.1s (compile: 10.6s, render: 579ms)
+[1]  GET / 200 in 70ms (compile: 6ms, render: 63ms)
+[1]  GET / 200 in 68ms (compile: 11ms, render: 57ms)
+[1]  GET / 200 in 181ms (compile: 40ms, render: 140ms)

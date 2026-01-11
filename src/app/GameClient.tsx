@@ -10,6 +10,8 @@ import { useState } from "react";
 import { Settings } from "lucide-react";
 import { NetworkedWorld } from "../components/game/NetworkedWorld";
 import { DungeonMap } from "../components/debug/DungeonMap";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { Minitel } from "../components/effects/MinitelEffect";
 import * as THREE from 'three';
 
 // Add THREE to global for debugging
@@ -37,6 +39,22 @@ export default function GameClient() {
           <DebugInput />
 
           <NetworkedWorld />
+
+          {/* Post-Processing */}
+          <EffectComposer>
+            <Bloom
+              intensity={0.5}
+              luminanceThreshold={0.8}
+              luminanceSmoothing={0.02}
+              kernelSize={3} // Low setting for performance
+            />
+            <Minitel
+              curvature={3.0}
+              scanlineIntensity={0.15}
+              noiseIntensity={0.08}
+              vignette={1.5}
+            />
+          </EffectComposer>
         </Canvas>
       </div>
 
