@@ -17,11 +17,15 @@
     "@types/bun": "latest",
     "@types/howler": "^2.2.12",
     "chokidar": "^5.0.0",
+    "concurrently": "^9.2.1",
     "draco3d": "^1.5.7",
     "sharp": "^0.34.5"
   },
   "scripts": {
-    "optimize": "bun run scripts/optimize-assets.ts"
+    "optimize": "bun run scripts/optimize-assets.ts",
+    "dev": "concurrently \"bun run --cwd server dev\" \"bun run --cwd src dev\"",
+    "build": "bun run --cwd src build",
+    "start": "concurrently \"bun run --cwd server start\" \"bun run --cwd src start\""
   },
   "module": "index.ts",
   "type": "module",
