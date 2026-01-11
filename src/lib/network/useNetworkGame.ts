@@ -5,10 +5,12 @@ import {
   PlayerState,
   EntityState,
   readSnapshot,
+  readGameEvent,
   writeClientInput,
-  CLIENT_INPUT_SIZE
+  CLIENT_INPUT_SIZE,
+  GameEvent
 } from '@3615/shared/netcode/schema';
-import { PacketType } from '@3615/shared/netcode/opcodes';
+import { PacketType, GameEventType } from '@3615/shared/netcode/opcodes';
 import { applyInput } from '@3615/shared/physics';
 import { TICK_RATE, TICK_DT, INPUT_BUFFER_SIZE, SNAPSHOT_BUFFER_SIZE, RECONCILIATION_THRESHOLD } from '@3615/shared/config/constants';
 import { useInputStore, BindableAction, getInputState } from '../../stores/inputStore';
@@ -26,7 +28,8 @@ interface NetworkState {
   history: { tick: number; inputMask: number; pos: { x: number; y: number } }[];
   entities: EntityState[];
   otherPlayers: PlayerState[];
-  localPlayer: { x: number; y: number; angle: number } | null;
+  localPlayer: { x: number; y: number; angle: number; weapon?: number; ammo?: number } | null;
+  events: GameEvent[]; // Queue of transient events
 }
 
 // --- Helper: Input Mask ---
@@ -39,7 +42,12 @@ function getCurrentInputMask(): number {
   if (state.move.y > 0.1) mask |= InputMask.DOWN;
   if (state.move.x < -0.1) mask |= InputMask.LEFT;
   if (state.move.x > 0.1) mask |= InputMask.RIGHT;
-  // TODO: Add Shoot/Throw/etc
+
+  if (state.shoot) mask |= InputMask.SHOOT;
+  if (state.throw) mask |= InputMask.THROW;
+  if (state.reload) mask |= InputMask.RELOAD;
+  if (state.move.x === 0 && state.move.y === 0 && state.interact) mask |= InputMask.DASH; // Example mapping? Or separate DASH
+
   return mask;
 }
 
@@ -59,6 +67,7 @@ export function useNetworkGame() {
     entities: [],
     otherPlayers: [],
     localPlayer: { x: 0, y: 0, angle: 0 },
+    events: [],
   });
 
   // Connect on mount
@@ -105,6 +114,9 @@ export function useNetworkGame() {
       } else if (type === PacketType.SNAPSHOT) {
         const snapshot = readSnapshot(view, 1); // Skip Type byte
         onServerSnapshot(snapshot);
+      } else if (type === PacketType.GAME_EVENT) {
+        const evt = readGameEvent(view, 1);
+        gameState.current.events.push(evt);
       }
     };
 
@@ -147,6 +159,10 @@ export function useNetworkGame() {
     if (state.playerId !== null && state.localPlayer) {
       const serverPlayer = snapshot.players.find(p => p.id === state.playerId);
       if (serverPlayer) {
+        // Sync vital stats that aren't predicted (HP, Ammo)
+        state.localPlayer.weapon = serverPlayer.weapon;
+        state.localPlayer.ammo = serverPlayer.ammo;
+
         // Find history step matching server tick
         const historyStep = state.history.find(h => h.tick === snapshot.tick);
 
@@ -220,10 +236,34 @@ export function useNetworkGame() {
     // Cap accumulator to avoid spiral of death
     if (accumulator.current > 0.1) accumulator.current = 0.1;
 
+    // Get input state once per frame (or per tick?)
+    // Usually per frame is fresher, but we only SEND per tick.
+    // For local visual feedback (shoot), we want it asap.
+
+    // We can check "Did shoot" this frame.
+    // But networking sends inputs at TICK_RATE.
+
+    // For strict ticking:
     while (accumulator.current >= TICK_DT) {
       accumulator.current -= TICK_DT;
 
       const inputMask = getCurrentInputMask();
+      const inputState = getInputState(); // For angle
+
+      // Calculate mouse angle (Look at mouse)
+      // `inputState.aim` is normalized direction or screen coord?
+      // AGENTS.md: "Aiming input provides... Screen Coordinates (Vector2) for Mouse... raycasting deferred to Player Controller".
+      // We need to convert screen coords to world angle?
+      // Or does `inputState.aim` already do it?
+      // If we are in Canvas, we need Raycasting to Ground Plane.
+      // But `useInputStore` logic is UI layer.
+      // The actual "LookAt" logic usually happens in the Component (NetworkedWorld) which has the Camera.
+      // So we will let `NetworkedWorld` update `gameState.localPlayer.angle` via `inputState.aim`?
+      // No, `writeClientInput` needs `mouseAngle`.
+
+      // Temporary: Use angle stored in localPlayer (updated by NetworkedWorld)?
+      const currentAngle = gameState.current.localPlayer?.angle || 0;
+
       const currentTick = gameState.current.clientTick;
 
       // 1. Predict Movement
@@ -244,7 +284,7 @@ export function useNetworkGame() {
         writeClientInput(view, 0, {
           tick: currentTick,
           inputMask: inputMask,
-          mouseAngle: 0
+          mouseAngle: currentAngle
         });
         socketRef.current.send(buffer);
       }
