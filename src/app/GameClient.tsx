@@ -8,6 +8,13 @@ import { MusicManager } from "../components/audio/MusicManager";
 import { SFXPool } from "../components/audio/SFXPool";
 import { useState } from "react";
 import { Settings } from "lucide-react";
+import { NetworkedWorld } from "../components/game/NetworkedWorld";
+import * as THREE from 'three';
+
+// Add THREE to global for debugging
+if (typeof window !== 'undefined') {
+  (window as any).THREE = THREE;
+}
 
 export default function GameClient() {
   const [showSettings, setShowSettings] = useState(false);
@@ -28,10 +35,7 @@ export default function GameClient() {
           {/* Input System & Debug Visuals */}
           <DebugInput />
 
-          <mesh position={[2, 0, 0]}>
-            <boxGeometry />
-            <meshStandardMaterial color="orange" />
-          </mesh>
+          <NetworkedWorld />
         </Canvas>
       </div>
 
