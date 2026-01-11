@@ -4,6 +4,8 @@ import { Canvas } from "@react-three/fiber";
 import { SettingsMenu } from "../components/ui/SettingsMenu";
 import { VirtualJoystick } from "../components/ui/VirtualJoystick";
 import { DebugInput } from "../components/DebugInput";
+import { MusicManager } from "../components/audio/MusicManager";
+import { SFXPool } from "../components/audio/SFXPool";
 import { useState } from "react";
 import { Settings } from "lucide-react";
 
@@ -12,6 +14,7 @@ export default function GameClient() {
 
   return (
     <div className="relative w-full h-screen bg-neutral-900 overflow-hidden">
+      <MusicManager />
 
       {/* 3D Scene */}
       <div className="absolute inset-0 z-0">
@@ -19,6 +22,8 @@ export default function GameClient() {
           <color attach="background" args={["#101015"]} />
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} />
+
+          <SFXPool />
 
           {/* Input System & Debug Visuals */}
           <DebugInput />
