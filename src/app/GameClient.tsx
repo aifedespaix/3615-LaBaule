@@ -9,6 +9,7 @@ import { SFXPool } from "../components/audio/SFXPool";
 import { useState } from "react";
 import { Settings } from "lucide-react";
 import { NetworkedWorld } from "../components/game/NetworkedWorld";
+import { DungeonMap } from "../components/debug/DungeonMap";
 import * as THREE from 'three';
 
 // Add THREE to global for debugging
@@ -64,9 +65,11 @@ export default function GameClient() {
            <VirtualJoystick />
         </div>
 
+        <DungeonMap />
+
         {/* Instructions */}
         <div className="absolute bottom-4 left-4 text-amber-500/50 font-mono text-xs">
-           DEBUG MODE: INPUT SYSTEM
+           DEBUG MODE: INPUT SYSTEM | [M] MAP
         </div>
 
       </div>

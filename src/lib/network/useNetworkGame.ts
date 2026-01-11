@@ -13,6 +13,7 @@ import { applyInput } from '@3615/shared/physics';
 import { TICK_RATE, TICK_DT, INPUT_BUFFER_SIZE, SNAPSHOT_BUFFER_SIZE, RECONCILIATION_THRESHOLD } from '@3615/shared/config/constants';
 import { useInputStore, BindableAction, getInputState } from '../../stores/inputStore';
 import { InputMask } from '@3615/shared/netcode/masks';
+import { useLevelStore } from '../../stores/levelStore';
 
 // --- Types ---
 
@@ -78,7 +79,19 @@ export function useNetworkGame() {
       const view = new DataView(buffer);
       const type = view.getUint8(0);
 
-      if (type === PacketType.HANDSHAKE) {
+      if (type === PacketType.LEVEL_DATA) {
+        // Parse Level Data
+        const decoder = new TextDecoder();
+        // Payload starts at byte 1
+        const json = decoder.decode(new Uint8Array(buffer).slice(1));
+        try {
+          const levelData = JSON.parse(json);
+          console.log("Received Level Data:", levelData);
+          useLevelStore.getState().setLevelData(levelData);
+        } catch (e) {
+          console.error("Failed to parse level data", e);
+        }
+      } else if (type === PacketType.HANDSHAKE) {
         const id = view.getUint8(1);
         console.log('Assigned Player ID:', id);
         gameState.current.playerId = id;
