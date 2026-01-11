@@ -2,6 +2,11 @@ import { PacketType } from "./opcodes";
 
 // --- Types ---
 
+export enum Status {
+  NONE = 0,
+  STUNNED = 1 << 0,
+}
+
 export interface ClientInput {
   tick: number;
   inputMask: number;
@@ -16,6 +21,7 @@ export interface PlayerState {
   hp: number;
   weapon: number; // WeaponType
   ammo: number;
+  status: number; // Bitmask (Status)
 }
 
 export interface EntityState {
@@ -46,8 +52,8 @@ export interface WorldSnapshot {
 // ClientInput: Type(1) + Tick(2) + Mask(1) + Angle(2) + Pad(1) = 7 bytes
 export const CLIENT_INPUT_SIZE = 7;
 
-// PlayerState: ID(1) + X(2) + Y(2) + Angle(2) + HP(1) + Weapon(1) + Ammo(1) = 10 bytes
-export const PLAYER_STATE_SIZE = 10;
+// PlayerState: ID(1) + X(2) + Y(2) + Angle(2) + HP(1) + Weapon(1) + Ammo(1) + Status(1) = 11 bytes
+export const PLAYER_STATE_SIZE = 11;
 
 // EntityState: ID(2) + Type(1) + X(2) + Y(2) + Angle(2) = 9 bytes
 export const ENTITY_STATE_SIZE = 9;
@@ -168,6 +174,9 @@ export function writeSnapshot(view: DataView, offset: number, snapshot: WorldSna
 
     view.setUint8(offset, player.ammo);
     offset += 1;
+
+    view.setUint8(offset, player.status);
+    offset += 1;
   }
 
   // Entities
@@ -277,7 +286,10 @@ export function readSnapshot(view: DataView, offset: number): WorldSnapshot {
     const ammo = view.getUint8(offset);
     offset += 1;
 
-    players.push({ id, x, y, angle, hp, weapon, ammo });
+    const status = view.getUint8(offset);
+    offset += 1;
+
+    players.push({ id, x, y, angle, hp, weapon, ammo, status });
   }
 
   const entities: EntityState[] = [];
