@@ -1,4 +1,4 @@
-import { TileType } from './types.js';
+import { TileType } from './types';
 
 // Visual helpers for defining map layouts
 export const _ = TileType.FLOOR;        // 0

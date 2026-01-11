@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useNetworkGame } from "../../lib/network/useNetworkGame";
 import * as THREE from "three";
+import { MapRenderer } from "./MapRenderer";
 
 export function NetworkedWorld() {
   const gameState = useNetworkGame();
@@ -65,6 +66,9 @@ export function NetworkedWorld() {
 
   return (
     <group>
+      {/* Map Rendering */}
+      <MapRenderer />
+
       {/* Local Player (Blue) */}
       <mesh ref={localPlayerRef} position={[0, -100, 0]}>
         <boxGeometry args={[1, 1, 1]} />
