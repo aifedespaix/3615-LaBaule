@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts"
+  },
   "dependencies": {
     "@3615/shared": "workspace:*"
   }
