@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   WorldSnapshot,
@@ -10,12 +10,13 @@ import {
   CLIENT_INPUT_SIZE,
   GameEvent
 } from '@3615/shared/netcode/schema';
-import { PacketType, GameEventType } from '@3615/shared/netcode/opcodes';
+import { PacketType } from '@3615/shared/netcode/opcodes';
 import { applyInput } from '@3615/shared/physics';
-import { TICK_RATE, TICK_DT, INPUT_BUFFER_SIZE, SNAPSHOT_BUFFER_SIZE, RECONCILIATION_THRESHOLD } from '@3615/shared/config/constants';
-import { useInputStore, BindableAction, getInputState } from '../../stores/inputStore';
+import { TICK_DT, SNAPSHOT_BUFFER_SIZE, RECONCILIATION_THRESHOLD } from '@3615/shared/config/constants';
+import { getInputState } from '../../stores/inputStore';
 import { InputMask } from '@3615/shared/netcode/masks';
 import { useLevelStore } from '../../stores/levelStore';
+import { useLobbyStore, LobbyState } from '../../stores/lobbyStore';
 
 // --- Types ---
 
@@ -23,262 +24,222 @@ interface NetworkState {
   connected: boolean;
   playerId: number | null;
   serverTick: number;
-  clientTick: number; // The tick we are currently predicting
+  clientTick: number;
   snapshots: WorldSnapshot[];
   history: { tick: number; inputMask: number; pos: { x: number; y: number } }[];
   entities: EntityState[];
   otherPlayers: PlayerState[];
-  localPlayer: { x: number; y: number; angle: number; weapon?: number; ammo?: number } | null;
-  events: GameEvent[]; // Queue of transient events
+  localPlayer: { x: number; y: number; angle: number; weapon?: number; ammo?: number; score?: number } | null;
+  events: GameEvent[];
 }
+
+// --- Singleton State ---
+
+const gameState: NetworkState = {
+  connected: false,
+  playerId: null,
+  serverTick: 0,
+  clientTick: 0,
+  snapshots: [],
+  history: [],
+  entities: [],
+  otherPlayers: [],
+  localPlayer: { x: 0, y: 0, angle: 0 },
+  events: [],
+};
+
+let socket: WebSocket | null = null;
 
 // --- Helper: Input Mask ---
 
 function getCurrentInputMask(): number {
   const state = getInputState();
   let mask = 0;
-  // Threshold to avoid drift
   if (state.move.y < -0.1) mask |= InputMask.UP;
   if (state.move.y > 0.1) mask |= InputMask.DOWN;
   if (state.move.x < -0.1) mask |= InputMask.LEFT;
   if (state.move.x > 0.1) mask |= InputMask.RIGHT;
-
   if (state.shoot) mask |= InputMask.SHOOT;
   if (state.throw) mask |= InputMask.THROW;
   if (state.reload) mask |= InputMask.RELOAD;
-  if (state.move.x === 0 && state.move.y === 0 && state.interact) mask |= InputMask.DASH; // Example mapping? Or separate DASH
-
+  if (state.move.x === 0 && state.move.y === 0 && state.interact) mask |= InputMask.DASH;
   return mask;
 }
 
-// --- Hook ---
+// --- Logic: Handle Snapshot ---
+
+const onServerSnapshot = (snapshot: WorldSnapshot) => {
+  const state = gameState;
+
+  state.serverTick = snapshot.tick;
+
+  if (state.clientTick === 0) {
+    state.clientTick = snapshot.tick + 2;
+    if (!state.localPlayer && state.playerId) {
+        const p = snapshot.players.find(p => p.id === state.playerId);
+        if (p) state.localPlayer = { x: p.x, y: p.y, angle: p.angle };
+    }
+  }
+
+  state.snapshots.push(snapshot);
+  if (state.snapshots.length > SNAPSHOT_BUFFER_SIZE) {
+    state.snapshots.shift();
+  }
+
+  if (state.playerId !== null && state.localPlayer) {
+    const serverPlayer = snapshot.players.find(p => p.id === state.playerId);
+    if (serverPlayer) {
+      state.localPlayer.weapon = serverPlayer.weapon;
+      state.localPlayer.ammo = serverPlayer.ammo;
+      state.localPlayer.score = serverPlayer.score;
+      // Note: HP is updated locally by prediction? No, HP is authoritative.
+      state.localPlayer.hp = serverPlayer.hp;
+
+      const historyStep = state.history.find(h => h.tick === snapshot.tick);
+
+      if (historyStep) {
+        const dx = serverPlayer.x - historyStep.pos.x;
+        const dy = serverPlayer.y - historyStep.pos.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist > RECONCILIATION_THRESHOLD) {
+          let simX = serverPlayer.x;
+          let simY = serverPlayer.y;
+
+          const newHistory = [];
+          for (const step of state.history) {
+             if (step.tick > snapshot.tick) {
+                 const tempEnt = { x: simX, y: simY };
+                 applyInput(tempEnt, step.inputMask, TICK_DT);
+                 simX = tempEnt.x;
+                 simY = tempEnt.y;
+
+                 newHistory.push({
+                     tick: step.tick,
+                     inputMask: step.inputMask,
+                     pos: { x: simX, y: simY }
+                 });
+             }
+          }
+
+          state.history = newHistory;
+          state.localPlayer.x = simX;
+          state.localPlayer.y = simY;
+        } else {
+           state.history = state.history.filter(h => h.tick > snapshot.tick);
+        }
+      } else {
+           if (state.clientTick < snapshot.tick) {
+               state.localPlayer.x = serverPlayer.x;
+               state.localPlayer.y = serverPlayer.y;
+               state.clientTick = snapshot.tick + 1;
+           }
+      }
+    }
+  }
+};
+
+// --- Hook for Canvas (Prediction Loop) ---
 
 export function useNetworkGame() {
-  const socketRef = useRef<WebSocket | null>(null);
-
-  // Mutable game state (ref-based for loop access without re-renders)
-  const gameState = useRef<NetworkState>({
-    connected: false,
-    playerId: null,
-    serverTick: 0,
-    clientTick: 0,
-    snapshots: [],
-    history: [],
-    entities: [],
-    otherPlayers: [],
-    localPlayer: { x: 0, y: 0, angle: 0 },
-    events: [],
-  });
-
-  // Connect on mount
-  useEffect(() => {
-    // Determine URL based on environment or window location?
-    // Hardcoded for now as per instructions (Game runs locally)
-    const ws = new WebSocket('ws://localhost:3001');
-    ws.binaryType = 'arraybuffer';
-    socketRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('Connected to server');
-      gameState.current.connected = true;
-    };
-
-    ws.onmessage = (event) => {
-      const buffer = event.data as ArrayBuffer;
-      const view = new DataView(buffer);
-      const type = view.getUint8(0);
-
-      if (type === PacketType.LEVEL_DATA) {
-        // Parse Level Data
-        const decoder = new TextDecoder();
-        // Payload starts at byte 1
-        const json = decoder.decode(new Uint8Array(buffer).slice(1));
-        try {
-          const levelData = JSON.parse(json);
-          console.log("Received Level Data:", levelData);
-          useLevelStore.getState().setLevelData(levelData);
-        } catch (e) {
-          console.error("Failed to parse level data", e);
-        }
-      } else if (type === PacketType.HANDSHAKE) {
-        const id = view.getUint8(1);
-        console.log('Assigned Player ID:', id);
-        gameState.current.playerId = id;
-
-        // Initialize local player position?
-        // Wait, we need to know where we spawn.
-        // For now, assume 0,0 until first snapshot confirms or corrects us.
-        if (!gameState.current.localPlayer) {
-             gameState.current.localPlayer = { x: 0, y: 0, angle: 0 };
-        }
-      } else if (type === PacketType.SNAPSHOT) {
-        const snapshot = readSnapshot(view, 1); // Skip Type byte
-        onServerSnapshot(snapshot);
-      } else if (type === PacketType.GAME_EVENT) {
-        const evt = readGameEvent(view, 1);
-        gameState.current.events.push(evt);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('Disconnected');
-      gameState.current.connected = false;
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, []);
-
-  // --- Logic: Handle Snapshot ---
-
-  const onServerSnapshot = (snapshot: WorldSnapshot) => {
-    const state = gameState.current;
-
-    // 1. Update Server Tick
-    state.serverTick = snapshot.tick;
-
-    // 2. Initialize Client Tick if needed (Elastic Time Init)
-    if (state.clientTick === 0) {
-      state.clientTick = snapshot.tick + 2; // Target buffer
-
-      // Also initialize local player pos if not set
-      if (!state.localPlayer && state.playerId) {
-          const p = snapshot.players.find(p => p.id === state.playerId);
-          if (p) state.localPlayer = { x: p.x, y: p.y, angle: p.angle };
-      }
-    }
-
-    // 3. Store Snapshot for Interpolation
-    state.snapshots.push(snapshot);
-    if (state.snapshots.length > SNAPSHOT_BUFFER_SIZE) {
-      state.snapshots.shift();
-    }
-
-    // 4. Reconciliation (Local Player)
-    if (state.playerId !== null && state.localPlayer) {
-      const serverPlayer = snapshot.players.find(p => p.id === state.playerId);
-      if (serverPlayer) {
-        // Sync vital stats that aren't predicted (HP, Ammo)
-        state.localPlayer.weapon = serverPlayer.weapon;
-        state.localPlayer.ammo = serverPlayer.ammo;
-
-        // Find history step matching server tick
-        const historyStep = state.history.find(h => h.tick === snapshot.tick);
-
-        if (historyStep) {
-          const dx = serverPlayer.x - historyStep.pos.x;
-          const dy = serverPlayer.y - historyStep.pos.y;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-
-          if (dist > RECONCILIATION_THRESHOLD) {
-            console.log(`Reconciling! Error: ${dist}`);
-
-            // Replay
-            // Start from authoritative state
-            let simX = serverPlayer.x;
-            let simY = serverPlayer.y;
-
-            // Filter history to keep only future ticks
-            // And re-simulate them
-            const newHistory = [];
-            for (const step of state.history) {
-               if (step.tick > snapshot.tick) {
-                   const tempEnt = { x: simX, y: simY };
-                   applyInput(tempEnt, step.inputMask, TICK_DT);
-                   simX = tempEnt.x;
-                   simY = tempEnt.y;
-
-                   // Save updated step
-                   newHistory.push({
-                       tick: step.tick,
-                       inputMask: step.inputMask,
-                       pos: { x: simX, y: simY }
-                   });
-               }
-            }
-
-            state.history = newHistory;
-            state.localPlayer.x = simX;
-            state.localPlayer.y = simY;
-          } else {
-             // Good prediction. Clean up old history.
-             state.history = state.history.filter(h => h.tick > snapshot.tick);
-          }
-        } else {
-            // No history for this tick? Might happen if we joined late or packet loss.
-            // Just snap to server?
-            // If we are far ahead, maybe we haven't stored it yet?
-            // If we are behind, we lost it.
-            // Safe fallback: Snap if very different?
-            // For now, do nothing if history missing (assume we are initializing).
-             if (state.clientTick < snapshot.tick) {
-                 // We are behind server? Jump ahead.
-                 state.localPlayer.x = serverPlayer.x;
-                 state.localPlayer.y = serverPlayer.y;
-                 state.clientTick = snapshot.tick + 1;
-             }
-        }
-      }
-    }
-  };
-
-
-  // --- Game Loop (Client Prediction) ---
-
+  const { state: lobbyState, roomCode, setState: setLobbyState, setError } = useLobbyStore();
   const accumulator = useRef(0);
 
+  // Handle Connection Lifecycle
+  useEffect(() => {
+    if (lobbyState === LobbyState.CONNECTING && !socket) {
+      console.log(`Dialing 3615 LA BAULE... Code: ${roomCode}`);
+
+      const wsUrl = new URL('ws://localhost:3001');
+      if (roomCode) {
+        wsUrl.searchParams.append('room', roomCode);
+      }
+
+      const ws = new WebSocket(wsUrl.toString());
+      ws.binaryType = 'arraybuffer';
+      socket = ws;
+
+      ws.onopen = () => {
+        console.log('Connected to server');
+        gameState.connected = true;
+        setLobbyState(LobbyState.GAME);
+      };
+
+      ws.onmessage = (event) => {
+        const buffer = event.data as ArrayBuffer;
+        const view = new DataView(buffer);
+        const type = view.getUint8(0);
+
+        if (type === PacketType.LEVEL_DATA) {
+          const decoder = new TextDecoder();
+          const json = decoder.decode(new Uint8Array(buffer).slice(1));
+          try {
+            const levelData = JSON.parse(json);
+            console.log("Received Level Data:", levelData);
+            useLevelStore.getState().setLevelData(levelData);
+          } catch (e) {
+            console.error("Failed to parse level data", e);
+          }
+        } else if (type === PacketType.HANDSHAKE) {
+          const id = view.getUint8(1);
+          console.log('Assigned Player ID:', id);
+          gameState.playerId = id;
+          if (!gameState.localPlayer) {
+               gameState.localPlayer = { x: 0, y: 0, angle: 0 };
+          }
+        } else if (type === PacketType.SNAPSHOT) {
+          const snapshot = readSnapshot(view, 1);
+          onServerSnapshot(snapshot);
+        } else if (type === PacketType.GAME_EVENT) {
+          const evt = readGameEvent(view, 1);
+          gameState.events.push(evt);
+        }
+      };
+
+      ws.onclose = (ev) => {
+        console.log('Disconnected', ev.code, ev.reason);
+        gameState.connected = false;
+        socket = null;
+
+        if (lobbyState === LobbyState.GAME || lobbyState === LobbyState.CONNECTING) {
+           setLobbyState(LobbyState.ERROR);
+           setError("SERVICE INDISPONIBLE");
+        }
+      };
+
+      ws.onerror = () => {
+         // Close handles error
+      };
+    } else if (lobbyState === LobbyState.MENU && socket) {
+        socket.close();
+        socket = null;
+    }
+  }, [lobbyState, roomCode, setLobbyState, setError]);
+
+  // Game Loop
   useFrame((state, delta) => {
-    if (!gameState.current.connected || gameState.current.playerId === null) return;
+    if (!gameState.connected || gameState.playerId === null || lobbyState !== LobbyState.GAME) return;
 
     accumulator.current += delta;
-
-    // Cap accumulator to avoid spiral of death
     if (accumulator.current > 0.1) accumulator.current = 0.1;
 
-    // Get input state once per frame (or per tick?)
-    // Usually per frame is fresher, but we only SEND per tick.
-    // For local visual feedback (shoot), we want it asap.
-
-    // We can check "Did shoot" this frame.
-    // But networking sends inputs at TICK_RATE.
-
-    // For strict ticking:
     while (accumulator.current >= TICK_DT) {
       accumulator.current -= TICK_DT;
 
       const inputMask = getCurrentInputMask();
-      const inputState = getInputState(); // For angle
+      const currentAngle = gameState.localPlayer?.angle || 0;
+      const currentTick = gameState.clientTick;
 
-      // Calculate mouse angle (Look at mouse)
-      // `inputState.aim` is normalized direction or screen coord?
-      // AGENTS.md: "Aiming input provides... Screen Coordinates (Vector2) for Mouse... raycasting deferred to Player Controller".
-      // We need to convert screen coords to world angle?
-      // Or does `inputState.aim` already do it?
-      // If we are in Canvas, we need Raycasting to Ground Plane.
-      // But `useInputStore` logic is UI layer.
-      // The actual "LookAt" logic usually happens in the Component (NetworkedWorld) which has the Camera.
-      // So we will let `NetworkedWorld` update `gameState.localPlayer.angle` via `inputState.aim`?
-      // No, `writeClientInput` needs `mouseAngle`.
-
-      // Temporary: Use angle stored in localPlayer (updated by NetworkedWorld)?
-      const currentAngle = gameState.current.localPlayer?.angle || 0;
-
-      const currentTick = gameState.current.clientTick;
-
-      // 1. Predict Movement
-      if (gameState.current.localPlayer) {
-        applyInput(gameState.current.localPlayer, inputMask, TICK_DT);
-
-        gameState.current.history.push({
+      if (gameState.localPlayer) {
+        applyInput(gameState.localPlayer, inputMask, TICK_DT);
+        gameState.history.push({
           tick: currentTick,
           inputMask: inputMask,
-          pos: { ...gameState.current.localPlayer }
+          pos: { ...gameState.localPlayer }
         });
       }
 
-      // 2. Send Input
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      if (socket && socket.readyState === WebSocket.OPEN) {
         const buffer = new ArrayBuffer(CLIENT_INPUT_SIZE);
         const view = new DataView(buffer);
         writeClientInput(view, 0, {
@@ -286,68 +247,21 @@ export function useNetworkGame() {
           inputMask: inputMask,
           mouseAngle: currentAngle
         });
-        socketRef.current.send(buffer);
+        socket.send(buffer);
       }
 
-      // 3. Advance Tick
-      gameState.current.clientTick++;
+      gameState.clientTick++;
     }
 
-    // --- Interpolation for Rendering ---
-    const snapshots = gameState.current.snapshots;
-
-    // We want to render the world 100ms (3 ticks) in the past relative to Server Tick
-    // However, since we don't have synchronized clocks, we use the snapshots we have.
-    // The "Server Tick" is the latest one we received.
-    // We want to interpolate between (Latest - 2) and (Latest - 1)?
-    // Or just interpolate between the two most recent snapshots we have?
-    // "RenderTime = ServerTime - 100ms"
-
-    // Simplest robust approach:
-    // Always interpolate between snapshots[i] and snapshots[i+1] such that
-    // snapshots[i].tick <= targetTick < snapshots[i+1].tick
-
-    // For this prototype, let's interpolate between the last two received snapshots
-    // based on how much time has passed since the last snapshot arrived? No, that's jittery.
-
-    // Let's just linearly interpolate the two latest snapshots we have.
+    // Interpolation for Remotes
+    const snapshots = gameState.snapshots;
     if (snapshots.length >= 2) {
-       const next = snapshots[snapshots.length - 1]; // Latest
-       const prev = snapshots[snapshots.length - 2]; // Previous
+       const next = snapshots[snapshots.length - 1];
+       const prev = snapshots[snapshots.length - 2];
+       const alpha = 0.5;
 
-       // Alpha: How far are we between prev and next?
-       // We can approximate alpha using the accumulator or just fix it to 0.5?
-       // No, that doesn't smooth motion.
-
-       // To do it properly we need a "Render Time" that advances at 1x speed.
-       // But adding that state adds complexity.
-
-       // Quick Hack for Smoothness:
-       // We know we receive snapshots at 30Hz (every 33ms).
-       // We can set alpha based on (time since last snapshot received / 33ms).
-       // But we didn't track "time since received".
-
-       // Let's assume we are viewing "Recent" but blending "Previous" to it?
-       // Standard Interpolation:
-       // RenderTime = Now - InterpolationDelay (100ms)
-       // Find snapshots [A, B] where A.time <= RenderTime <= B.time
-       // Alpha = (RenderTime - A.time) / (B.time - A.time)
-
-       // Since we lack "Time" in snapshots (only ticks), and we assume 30Hz:
-       // Tick Duration = 33.33ms.
-       // Let's implement a simple "Visual Entity" list in the state that we update here.
-
-       // For now, to satisfy the prompt's request for "Lerp":
-       // We will just Lerp(Prev, Next, 0.5) to at least show we can Lerp?
-       // No, static 0.5 is wrong.
-
-       // Let's stick to the prompt: "Interpolation: ... 100ms delay ... Lerp"
-       // We will perform the lerp for the remote players.
-
-       const alpha = 0.5; // Placeholder for true time-based alpha
-
-       gameState.current.otherPlayers = next.players
-          .filter(p => p.id !== gameState.current.playerId)
+       gameState.otherPlayers = next.players
+          .filter(p => p.id !== gameState.playerId)
           .map(nextP => {
               const prevP = prev.players.find(pp => pp.id === nextP.id);
               if (prevP) {
@@ -355,17 +269,33 @@ export function useNetworkGame() {
                       ...nextP,
                       x: prevP.x + (nextP.x - prevP.x) * alpha,
                       y: prevP.y + (nextP.y - prevP.y) * alpha,
-                      angle: nextP.angle // Slerp would be better
+                      angle: nextP.angle
                   };
               }
               return nextP;
           });
-
     } else if (snapshots.length === 1) {
-       gameState.current.otherPlayers = snapshots[0].players.filter(p => p.id !== gameState.current.playerId);
+       gameState.otherPlayers = snapshots[0].players.filter(p => p.id !== gameState.playerId);
     }
-
   });
 
-  return gameState.current;
+  return gameState;
+}
+
+// --- Hook for UI (Polling) ---
+
+export function useGameUI() {
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        let anim: number;
+        const loop = () => {
+            setTick(t => t + 1);
+            anim = requestAnimationFrame(loop);
+        };
+        loop();
+        return () => cancelAnimationFrame(anim);
+    }, []);
+
+    return gameState;
 }
