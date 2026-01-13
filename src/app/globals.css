@@ -1,12 +1,19 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+@font-face {
+  font-family: 'VT323';
+  src: url('/fonts/VT323-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-vt323: var(--font-vt323);
+  --font-vt323: "VT323", monospace;
 
   --color-minitel-green: #33ff00;
   --color-minitel-cyan: #00ffff;
