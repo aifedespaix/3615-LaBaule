@@ -38,7 +38,7 @@ export const DebugInput = () => {
         fontSize={0.2}
         maxWidth={2}
         lineHeight={1.2}
-        font="https://fonts.gstatic.com/s/pressstart2p/v14/e3t4euO8wC-eTPS1L53kYy1BEg.woff"
+        font="/fonts/VT323-Regular.ttf"
         anchorX="left"
         anchorY="top"
       >
