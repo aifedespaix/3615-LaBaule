@@ -21,13 +21,18 @@ export function MapRenderer() {
   const wallsRef = useRef<THREE.InstancedMesh>(null);
   const floorsRef = useRef<THREE.InstancedMesh>(null);
 
-  // State for instance counts (to resize buffers if needed, though we usually just set max)
-  // For R3F, we often just recreate the component or rely on key prop if counts change drastically.
-  // But here we calculate counts once when levelData loads.
+  // State for instance counts
   const [counts, setCounts] = useState({ walls: 0, floors: 0 });
 
   useLayoutEffect(() => {
     if (!levelData) return;
+
+    // Sanity Check: Log room count to detect explosive generation loop
+    if (levelData.rooms.length > 50) {
+       console.warn(`[MapRenderer] High room count detected: ${levelData.rooms.length}. Potential generation infinite loop?`);
+    } else {
+       console.log(`[MapRenderer] Generating geometry for ${levelData.rooms.length} rooms.`);
+    }
 
     const rooms = levelData.rooms;
     let wallCount = 0;
@@ -78,24 +83,37 @@ export function MapRenderer() {
           const tile = template.layout[r][c];
 
           // Calculate Tile Center
-          // Grid (c, r) -> World (x, z)
-          // Since 0,0 is top-left, z increases with r
           const tileCenterX = roomWorldX + (c * TILE_SIZE) + (TILE_SIZE / 2);
           const tileCenterZ = roomWorldZ + (r * TILE_SIZE) + (TILE_SIZE / 2);
 
           tempMatrix.identity();
 
-          if (tile === TileType.WALL) {
-            // Position
-            tempMatrix.setPosition(tileCenterX, WALL_Y, tileCenterZ);
-            wallsRef.current.setMatrixAt(wIndex, tempMatrix);
-            wIndex++;
+          // Safety Check: Skip invalid coordinates
+          if (!Number.isFinite(tileCenterX) || !Number.isFinite(tileCenterZ)) {
+             console.error(`[MapRenderer] Invalid coordinates detected: ${tileCenterX}, ${tileCenterZ}. Hiding instance.`);
+             // Collapse instance to 0 size so it is invisible, rather than skipping (which leaves it at 0,0,0)
+             tempMatrix.makeScale(0, 0, 0);
           } else {
-            // Floor
-            tempMatrix.makeRotationX(-Math.PI / 2);
-            tempMatrix.setPosition(tileCenterX, 0, tileCenterZ);
-            floorsRef.current.setMatrixAt(fIndex, tempMatrix);
-            fIndex++;
+              // Valid Coordinate Calculation
+              if (tile === TileType.WALL) {
+                tempMatrix.setPosition(tileCenterX, WALL_Y, tileCenterZ);
+              } else {
+                tempMatrix.makeRotationX(-Math.PI / 2);
+                tempMatrix.setPosition(tileCenterX, 0, tileCenterZ);
+              }
+          }
+
+          // Apply Matrix
+          if (tile === TileType.WALL) {
+            if (wIndex < counts.walls) {
+                wallsRef.current.setMatrixAt(wIndex, tempMatrix);
+                wIndex++;
+            }
+          } else {
+            if (fIndex < counts.floors) {
+                floorsRef.current.setMatrixAt(fIndex, tempMatrix);
+                fIndex++;
+            }
           }
         }
       }
