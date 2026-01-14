@@ -36,7 +36,7 @@ export default function GameClient() {
           <Canvas>
             <color attach="background" args={["#101015"]} />
             <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
+            {/* <pointLight position={[10, 10, 10]} /> */}
 
             <SFXPool />
 
