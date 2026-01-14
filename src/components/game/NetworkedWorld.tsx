@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useState } from "react";
+import { useRef, useMemo } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useNetworkGame } from "../../lib/network/useNetworkGame";
 import * as THREE from "three";
@@ -249,52 +249,52 @@ export function NetworkedWorld() {
 
 // Optimized Tracer Renderer
 function TracerRenderer({ tracersRef }: { tracersRef: React.MutableRefObject<Tracer[]> }) {
-    const [_, setTick] = useState(0);
-    useFrame(() => setTick(t => t + 1));
+  const lineRef = useRef<THREE.LineSegments>(null);
+  const maxTracers = 100;
+  // Allocate buffer once: 100 lines * 2 vertices * 3 coordinates
+  const positions = useMemo(() => new Float32Array(maxTracers * 2 * 3), []);
 
-    return (
-        <group>
-            {tracersRef.current.map(t => (
-                <Line
-                    key={t.id}
-                    startX={t.startX}
-                    startY={t.startY}
-                    endX={t.endX}
-                    endY={t.endY}
-                    color={t.color}
-                />
-            ))}
-        </group>
-    );
-}
+  useFrame(() => {
+    if (!lineRef.current) return;
 
-// Simple Line Component
-function Line({ startX, startY, endX, endY, color }: { startX: number, startY: number, endX: number, endY: number, color: string }) {
-    const ref = useRef<any>(null);
+    const tracers = tracersRef.current;
+    // Cap at maxTracers
+    const count = Math.min(tracers.length, maxTracers);
 
-    useFrame(() => {
-       if (ref.current) {
-           // We could optimize this to not recreate vectors every frame if start/end are static
-           // But since the loop above recreates the component props...
-           // Actually, the key={t.id} keeps the component instance alive!
-           // So startX/Y are stable for the lifetime of the tracer (static).
-           // So we can just set it once.
-           // But wait, the parent re-renders.
-       }
-    });
+    // Update geometry attributes directly
+    for (let i = 0; i < count; i++) {
+        const t = tracers[i];
+        const idx = i * 6; // 2 vertices per line, 3 floats per vertex
 
-    // Memoize the geometry update trigger
-    const points = useMemo(() => [new THREE.Vector3(startX, 0.5, startY), new THREE.Vector3(endX, 0.5, endY)], [startX, startY, endX, endY]);
+        // Start Point
+        positions[idx] = t.startX;
+        positions[idx+1] = 0.5;
+        positions[idx+2] = t.startY;
 
-    return (
-        <line ref={ref}>
-            <bufferGeometry>
-                <bufferAttribute
-                    attach="attributes-position"
-                    args={[new Float32Array([startX, 0.5, startY, endX, 0.5, endY]), 3]}
-                />
-            </bufferGeometry>
-            <lineBasicMaterial color={color} linewidth={2} />
-        </line>
-    );
+        // End Point
+        positions[idx+3] = t.endX;
+        positions[idx+4] = 0.5;
+        positions[idx+5] = t.endY;
+    }
+
+    // Tell Three.js to upload the new data
+    lineRef.current.geometry.attributes.position.needsUpdate = true;
+
+    // Only draw the active lines
+    lineRef.current.geometry.setDrawRange(0, count * 2);
+  });
+
+  return (
+    <lineSegments ref={lineRef} frustumCulled={false}>
+       <bufferGeometry>
+         <bufferAttribute
+            attach="attributes-position"
+            count={positions.length / 3}
+            array={positions}
+            itemSize={3}
+         />
+       </bufferGeometry>
+       <lineBasicMaterial color="#ffff00" linewidth={2} depthTest={false} transparent opacity={0.8} />
+    </lineSegments>
+  );
 }
