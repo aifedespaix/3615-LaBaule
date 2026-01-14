@@ -2,7 +2,7 @@ import { RoomTemplate } from '../types';
 import { _, W, D, G } from '../constants';
 
 export const ARENA_01: RoomTemplate = {
-  id: 'arena_01',
+  id: 'ARENA_01',
   tags: ['arena'],
   layout: [
     [W, W, W, W, W, D, D, W, W, W, W, W],
