@@ -152,11 +152,16 @@ export const Minitel = forwardRef<any, MinitelProps>((props, ref) => {
     vignette = 1.5
   } = props
 
-  // Use provided resolution OR fallback to current canvas size
-  const resolution = useMemo(() =>
-    screenResolution || new Vector2(size.width, size.height),
-    [screenResolution, size.width, size.height]
-  )
+  // Safe Resolution Calculation:
+  // Ensure we never pass 0x0 to the shader or framebuffers
+  const resolution = useMemo(() => {
+    if (screenResolution) return screenResolution;
+
+    // Guard against 0 dimensions which can cause WebGL Context Loss
+    const w = Math.max(1, size.width);
+    const h = Math.max(1, size.height);
+    return new Vector2(w, h);
+  }, [screenResolution, size.width, size.height]);
 
   return (
     <MinitelEffect

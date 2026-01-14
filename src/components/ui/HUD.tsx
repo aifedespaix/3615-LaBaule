@@ -26,12 +26,16 @@ export function HUD() {
   if (!localPlayer) return null;
 
   // Fix: Handle undefined state to prevent NaN errors
-  const hp = localPlayer.hp ?? 100;
-  const ammo = localPlayer.ammo ?? 0;
+  // We explicitly check for finite numbers to avoid NaN propagating to CSS or render logic
+  const hp = Number.isFinite(localPlayer.hp) ? localPlayer.hp! : 100;
+  const ammo = Number.isFinite(localPlayer.ammo) ? localPlayer.ammo! : 0;
 
   const weaponName = WEAPONS[localPlayer.weapon as WeaponType]?.name || "FISTS";
   const isLowAmmo = ammo < 5 && localPlayer.weapon !== WeaponType.FISTS;
   const isLowHp = hp < 30;
+
+  // Calculate opacity safely
+  const damageOverlayOpacity = Math.max(0, Math.min(1, (100 - hp) / 100));
 
   return (
     <div className="absolute inset-0 pointer-events-none font-vt323 text-shadow-sm select-none">
@@ -104,8 +108,8 @@ export function HUD() {
        <div
          className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-overlay"
          style={{
-            boxShadow: `inset 0 0 ${100 - hp}px rgba(255,0,0,${Math.max(0, (100 - hp) / 100)})`,
-            opacity: Math.max(0, (100 - hp) / 100)
+            boxShadow: `inset 0 0 ${100 - hp}px rgba(255,0,0,${damageOverlayOpacity})`,
+            opacity: damageOverlayOpacity
          }}
        />
 
