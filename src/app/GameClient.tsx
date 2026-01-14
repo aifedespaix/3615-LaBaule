@@ -43,6 +43,7 @@ export default function GameClient() {
             <DebugInput />
             <NetworkedWorld />
 
+            {/* TEMPORARY: Disable Post-Processing to diagnose WebGL crash
             <EffectComposer>
               <Bloom
                 intensity={0.5}
@@ -57,6 +58,7 @@ export default function GameClient() {
                 vignette={1.5}
               />
             </EffectComposer>
+            */}
           </Canvas>
         </div>
       )}

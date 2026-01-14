@@ -25,9 +25,13 @@ export function HUD() {
 
   if (!localPlayer) return null;
 
+  // Fix: Handle undefined state to prevent NaN errors
+  const hp = localPlayer.hp ?? 100;
+  const ammo = localPlayer.ammo ?? 0;
+
   const weaponName = WEAPONS[localPlayer.weapon as WeaponType]?.name || "FISTS";
-  const isLowAmmo = (localPlayer.ammo || 0) < 5 && localPlayer.weapon !== WeaponType.FISTS;
-  const isLowHp = localPlayer.hp < 30;
+  const isLowAmmo = ammo < 5 && localPlayer.weapon !== WeaponType.FISTS;
+  const isLowHp = hp < 30;
 
   return (
     <div className="absolute inset-0 pointer-events-none font-vt323 text-shadow-sm select-none">
@@ -61,7 +65,7 @@ export function HUD() {
            )}
            style={{ transform: `scale(${ammoScale})` }}
            >
-              {localPlayer.weapon === WeaponType.FISTS ? '∞' : localPlayer.ammo}
+              {localPlayer.weapon === WeaponType.FISTS ? '∞' : ammo}
            </div>
            <div className="text-[#00ffff] text-right text-xl">
               {weaponName}
@@ -78,10 +82,10 @@ export function HUD() {
              <div className="h-4 flex-1 bg-[#111] border border-[#333] relative">
                 <div
                   className={cn("h-full transition-all duration-300", isLowHp ? "bg-[#ff0000]" : "bg-[#33ff00]")}
-                  style={{ width: `${localPlayer.hp}%` }}
+                  style={{ width: `${hp}%` }}
                 />
              </div>
-             <span className="w-8 text-right">{localPlayer.hp}</span>
+             <span className="w-8 text-right">{hp}</span>
           </div>
 
           <div className="flex-1 text-center text-[#ffff00] animate-pulse">
@@ -100,8 +104,8 @@ export function HUD() {
        <div
          className="absolute inset-0 pointer-events-none transition-opacity duration-300 mix-blend-overlay"
          style={{
-            boxShadow: `inset 0 0 ${100 - localPlayer.hp}px rgba(255,0,0,${(100 - localPlayer.hp) / 100})`,
-            opacity: (100 - localPlayer.hp) / 100
+            boxShadow: `inset 0 0 ${100 - hp}px rgba(255,0,0,${Math.max(0, (100 - hp) / 100)})`,
+            opacity: Math.max(0, (100 - hp) / 100)
          }}
        />
 

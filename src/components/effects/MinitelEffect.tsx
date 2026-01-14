@@ -97,7 +97,7 @@ export class MinitelEffectImpl extends Effect {
     vignette = 1.5,
   }: MinitelProps = {}) {
     super('MinitelEffect', fragmentShader, {
-      attributes: EffectAttribute.CONVOLUTION, // Necessary for reading inputBuffer
+      // attributes: EffectAttribute.CONVOLUTION, // Removed to prevent context loss on some drivers
       uniforms: new Map<string, Uniform>([
         ['curvature', new Uniform(curvature)],
         ['resolution', new Uniform(screenResolution)],

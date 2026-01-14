@@ -29,7 +29,7 @@ interface NetworkState {
   history: { tick: number; inputMask: number; pos: { x: number; y: number } }[];
   entities: EntityState[];
   otherPlayers: PlayerState[];
-  localPlayer: { x: number; y: number; angle: number; weapon?: number; ammo?: number; score?: number } | null;
+  localPlayer: { x: number; y: number; angle: number; weapon?: number; ammo?: number; score?: number; hp?: number } | null;
   events: GameEvent[];
 }
 
@@ -201,7 +201,8 @@ export function useNetworkGame() {
         gameState.connected = false;
         socket = null;
 
-        if (lobbyState === LobbyState.GAME || lobbyState === LobbyState.CONNECTING) {
+        const currentState = useLobbyStore.getState().state;
+        if (currentState === LobbyState.GAME || currentState === LobbyState.CONNECTING) {
            setLobbyState(LobbyState.ERROR);
            setError("SERVICE INDISPONIBLE");
         }
