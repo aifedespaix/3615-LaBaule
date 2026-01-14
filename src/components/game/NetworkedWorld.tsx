@@ -235,8 +235,8 @@ export function NetworkedWorld() {
       {/* Remote Players (Red) - Managed by ref */}
       <group ref={remotePlayersGroupRef} />
 
-      {/* Gore System */}
-      <GoreSystem ref={goreRef} />
+      {/* Gore System (Disabled for stability) */}
+      {/* <GoreSystem ref={goreRef} /> */}
 
       {/* Tracers */}
       <TracerRenderer tracersRef={tracersRef} />
