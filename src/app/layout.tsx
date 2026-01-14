@@ -13,6 +13,30 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('unhandledrejection', function(event) {
+                // Suppress errors from known browser extensions (e.g. injectIneligible.js)
+                if (event.reason && (
+                  event.reason.stack?.includes('injectIneligible.js') ||
+                  event.reason.message?.includes('MediaDevices is not defined')
+                )) {
+                  event.preventDefault();
+                  console.debug('Suppressed external extension error:', event.reason);
+                }
+              });
+              window.addEventListener('error', function(event) {
+                if (event.filename?.includes('injectIneligible.js') || event.message?.includes('MediaDevices is not defined')) {
+                  event.preventDefault();
+                  console.debug('Suppressed external extension error:', event.message);
+                }
+              });
+            `,
+          }}
+        />
+      </head>
       <body
         className={`antialiased font-vt323 bg-black text-white`}
       >
