@@ -13,11 +13,16 @@ export function DebugGL() {
       console.error("Possible causes: GPU driver crash, OOM, infinite loop in shader, or heavy main thread blocking.");
 
       // Try to get debug info if available
-      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      // Fix: Access getContext() from the renderer to get the WebGLRenderingContext
+      const context = gl.getContext();
+      const debugInfo = context.getExtension('WEBGL_debug_renderer_info');
+
       if (debugInfo) {
-        const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
-        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        const vendor = context.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+        const renderer = context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
         console.error(`Renderer: ${renderer} (${vendor})`);
+      } else {
+        console.warn("WEBGL_debug_renderer_info extension not supported.");
       }
     };
 

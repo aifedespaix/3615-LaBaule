@@ -115,13 +115,13 @@ export function MapRenderer() {
       {/* Note: args are Width, Height, Depth */}
       <instancedMesh ref={wallMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <boxGeometry args={[TILE_SIZE, WALL_HEIGHT, TILE_SIZE]} />
-        <meshStandardMaterial color="#ff00ff" roughness={0.8} />
+        <meshBasicMaterial color="#ff00ff" />
       </instancedMesh>
 
       {/* FLOORS: PlaneGeometry 2x2 */}
       <instancedMesh ref={floorMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <planeGeometry args={[TILE_SIZE, TILE_SIZE]} />
-        <meshStandardMaterial color="#222222" roughness={0.8} />
+        <meshBasicMaterial color="#222222" />
       </instancedMesh>
     </group>
   )
