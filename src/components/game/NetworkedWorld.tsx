@@ -79,117 +79,117 @@ export function NetworkedWorld() {
 
     // --- 2. Input & LookAt ---
     if (gameState.localPlayer && localPlayerRef.current) {
-       // Update position from prediction
-       localPlayerRef.current.position.set(gameState.localPlayer.x, 0.5, gameState.localPlayer.y);
+      // Update position from prediction
+      localPlayerRef.current.position.set(gameState.localPlayer.x, 0.5, gameState.localPlayer.y);
 
-       // Calculate Angle based on Mouse
-       const raycaster = new THREE.Raycaster();
-       // Assuming inputStore gives NDC (-1 to 1) for aim.
-       // If logic in inputStore differs, we adjust.
-       // Based on `useInputStore`, `aim` is Vector2.
-       const mouse = new THREE.Vector2(getInputState().aim.x, getInputState().aim.y);
+      // Calculate Angle based on Mouse
+      const raycaster = new THREE.Raycaster();
+      // Assuming inputStore gives NDC (-1 to 1) for aim.
+      // If logic in inputStore differs, we adjust.
+      // Based on `useInputStore`, `aim` is Vector2.
+      const mouse = new THREE.Vector2(getInputState().aim.x, getInputState().aim.y);
 
-       raycaster.setFromCamera(mouse, camera);
-       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-       const target = new THREE.Vector3();
-       raycaster.ray.intersectPlane(plane, target);
+      raycaster.setFromCamera(mouse, camera);
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const target = new THREE.Vector3();
+      raycaster.ray.intersectPlane(plane, target);
 
-       if (target) {
-           const dx = target.x - gameState.localPlayer.x;
-           const dy = target.z - gameState.localPlayer.y;
-           const angle = Math.atan2(dy, dx);
-           gameState.localPlayer.angle = angle;
-           localPlayerRef.current.rotation.y = -angle;
-       }
+      if (target) {
+        const dx = target.x - gameState.localPlayer.x;
+        const dy = target.z - gameState.localPlayer.y;
+        const angle = Math.atan2(dy, dx);
+        gameState.localPlayer.angle = angle;
+        localPlayerRef.current.rotation.y = -angle;
+      }
 
-       // --- Client Prediction: Shooting ---
-       if (getInputState().shoot && gameState.localPlayer.weapon !== undefined) {
-           const weapon = WEAPONS[gameState.localPlayer.weapon as WeaponType];
+      // --- Client Prediction: Shooting ---
+      if (getInputState().shoot && gameState.localPlayer.weapon !== undefined) {
+        const weapon = WEAPONS[gameState.localPlayer.weapon as WeaponType];
 
-           if (now - lastFireTimeRef.current >= weapon.fireRate && (gameState.localPlayer.ammo || 0) > 0) {
-               lastFireTimeRef.current = now;
+        if (now - lastFireTimeRef.current >= weapon.fireRate && (gameState.localPlayer.ammo || 0) > 0) {
+          lastFireTimeRef.current = now;
 
-               // Predict Local Shot
-               const startX = gameState.localPlayer.x;
-               const startY = gameState.localPlayer.y;
-               const angle = gameState.localPlayer.angle;
+          // Predict Local Shot
+          const startX = gameState.localPlayer.x;
+          const startY = gameState.localPlayer.y;
+          const angle = gameState.localPlayer.angle;
 
-               // Spread application (Client Prediction)
-               const spread = weapon.spread;
-               const randomAngle = angle + (Math.random() - 0.5) * spread; // Simple spread
+          // Spread application (Client Prediction)
+          const spread = weapon.spread;
+          const randomAngle = angle + (Math.random() - 0.5) * spread; // Simple spread
 
-               const dirX = Math.cos(randomAngle);
-               const dirY = Math.sin(randomAngle);
+          const dirX = Math.cos(randomAngle);
+          const dirY = Math.sin(randomAngle);
 
-               // Raycast against Walls (for Visual Length)
-               let endX = startX + dirX * weapon.range;
-               let endY = startY + dirY * weapon.range;
+          // Raycast against Walls (for Visual Length)
+          let endX = startX + dirX * weapon.range;
+          let endY = startY + dirY * weapon.range;
 
-               if (collisionHelper) {
-                   const hit = raycast(startX, startY, dirX, dirY, weapon.range, collisionHelper);
-                   if (hit) {
-                       endX = hit.x;
-                       endY = hit.y;
-                   }
-               }
+          if (collisionHelper) {
+            const hit = raycast(startX, startY, dirX, dirY, weapon.range, collisionHelper);
+            if (hit) {
+              endX = hit.x;
+              endY = hit.y;
+            }
+          }
 
-               // Add Tracer
-               tracersRef.current.push({
-                   id: Math.random().toString(),
-                   startX, startY, endX, endY,
-                   spawnTime: state.clock.elapsedTime,
-                   color: '#ffff00'
-               });
+          // Add Tracer
+          tracersRef.current.push({
+            id: Math.random().toString(),
+            startX, startY, endX, endY,
+            spawnTime: state.clock.elapsedTime,
+            color: '#ffff00'
+          });
 
-               // Play Sound
-               playSound('shoot' as SoundKey, [startX, 0, startY]); // TODO: Map weapon to sound
+          // Play Sound
+          playSound('shoot' as SoundKey, [startX, 0, startY]); // TODO: Map weapon to sound
 
-               // Add Trauma
-               traumaRef.current = Math.min(1.0, traumaRef.current + weapon.trauma);
+          // Add Trauma
+          traumaRef.current = Math.min(1.0, traumaRef.current + weapon.trauma);
 
-               // Optimistic Ammo Update (Will be overwritten by server snapshot eventually)
-               if (gameState.localPlayer.ammo) gameState.localPlayer.ammo--;
-           }
-       }
+          // Optimistic Ammo Update (Will be overwritten by server snapshot eventually)
+          if (gameState.localPlayer.ammo) gameState.localPlayer.ammo--;
+        }
+      }
     }
 
     // --- 3. Process Game Events (Remote Tracers / SFX) ---
     while (gameState.events.length > 0) {
-        const evt = gameState.events.shift()!;
+      const evt = gameState.events.shift()!;
 
-        // Skip if source is self (Predicted already)
-        if (evt.sourceId === gameState.playerId) continue;
+      // Skip if source is self (Predicted already)
+      if (evt.sourceId === gameState.playerId) continue;
 
-        if (evt.type === GameEventType.SHOOT || evt.type === GameEventType.HIT_WALL || evt.type === GameEventType.HIT_ENEMY) {
-             // Find source position
-             let startX = 0, startY = 0;
-             const remote = gameState.otherPlayers.find(p => p.id === evt.sourceId);
-             if (remote) {
-                 startX = remote.x;
-                 startY = remote.y;
-             }
-
-             // Add Tracer
-             const newTracer: Tracer = {
-                 id: Math.random().toString(),
-                 startX,
-                 startY,
-                 endX: evt.endX,
-                 endY: evt.endY,
-                 spawnTime: state.clock.elapsedTime,
-                 color: '#ffff00' // Neon Yellow
-             };
-
-             tracersRef.current.push(newTracer);
-
-             // Play Sound
-             playSound('shoot' as SoundKey, [startX, 0, startY]);
+      if (evt.type === GameEventType.SHOOT || evt.type === GameEventType.HIT_WALL || evt.type === GameEventType.HIT_ENEMY) {
+        // Find source position
+        let startX = 0, startY = 0;
+        const remote = gameState.otherPlayers.find(p => p.id === evt.sourceId);
+        if (remote) {
+          startX = remote.x;
+          startY = remote.y;
         }
 
-        // Trigger Gore on HIT_ENEMY
-        // if (evt.type === GameEventType.HIT_ENEMY) {
-        //   goreRef.current?.addSplatter(evt.endX, evt.endY);
-        // }
+        // Add Tracer
+        const newTracer: Tracer = {
+          id: Math.random().toString(),
+          startX,
+          startY,
+          endX: evt.endX,
+          endY: evt.endY,
+          spawnTime: state.clock.elapsedTime,
+          color: '#ffff00' // Neon Yellow
+        };
+
+        tracersRef.current.push(newTracer);
+
+        // Play Sound
+        playSound('shoot' as SoundKey, [startX, 0, startY]);
+      }
+
+      // Trigger Gore on HIT_ENEMY
+      // if (evt.type === GameEventType.HIT_ENEMY) {
+      //   goreRef.current?.addSplatter(evt.endX, evt.endY);
+      // }
     }
 
     // Clean up old tracers
@@ -263,18 +263,18 @@ function TracerRenderer({ tracersRef }: { tracersRef: React.MutableRefObject<Tra
 
     // Update geometry attributes directly
     for (let i = 0; i < count; i++) {
-        const t = tracers[i];
-        const idx = i * 6; // 2 vertices per line, 3 floats per vertex
+      const t = tracers[i];
+      const idx = i * 6; // 2 vertices per line, 3 floats per vertex
 
-        // Start Point
-        positions[idx] = t.startX;
-        positions[idx+1] = 0.5;
-        positions[idx+2] = t.startY;
+      // Start Point
+      positions[idx] = t.startX;
+      positions[idx + 1] = 0.5;
+      positions[idx + 2] = t.startY;
 
-        // End Point
-        positions[idx+3] = t.endX;
-        positions[idx+4] = 0.5;
-        positions[idx+5] = t.endY;
+      // End Point
+      positions[idx + 3] = t.endX;
+      positions[idx + 4] = 0.5;
+      positions[idx + 5] = t.endY;
     }
 
     // Tell Three.js to upload the new data
@@ -286,15 +286,15 @@ function TracerRenderer({ tracersRef }: { tracersRef: React.MutableRefObject<Tra
 
   return (
     <lineSegments ref={lineRef} frustumCulled={false}>
-       <bufferGeometry>
-         <bufferAttribute
-            attach="attributes-position"
-            count={positions.length / 3}
-            array={positions}
-            itemSize={3}
-         />
-       </bufferGeometry>
-       <lineBasicMaterial color="#ffff00" linewidth={2} depthTest={false} transparent opacity={0.8} />
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={positions.length / 3}
+          array={positions}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial color="#ffff00" linewidth={2} depthTest={false} transparent opacity={0.8} />
     </lineSegments>
   );
 }
