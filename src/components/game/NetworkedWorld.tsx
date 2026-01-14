@@ -36,6 +36,10 @@ export function NetworkedWorld() {
   const remotePlayersGroupRef = useRef<THREE.Group>(null);
   // const goreRef = useRef<GoreSystemHandle>(null);
 
+  // Shared Resources (Optimization)
+  const remoteGeometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  const remoteMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: 'red' }), []);
+
   // Tracers State (Local visual only)
   const tracersRef = useRef<Tracer[]>([]);
 
@@ -207,9 +211,8 @@ export function NetworkedWorld() {
       gameState.otherPlayers.forEach(p => {
         let mesh = childrenMap.get(p.id.toString());
         if (!mesh) {
-          const geom = new THREE.BoxGeometry(1, 1, 1);
-          const mat = new THREE.MeshStandardMaterial({ color: 'red' });
-          mesh = new THREE.Mesh(geom, mat);
+          // Optimization: Reuse Geometry and Material
+          mesh = new THREE.Mesh(remoteGeometry, remoteMaterial);
           mesh.name = p.id.toString();
           group.add(mesh);
         }
@@ -229,7 +232,7 @@ export function NetworkedWorld() {
       {/* Local Player (Blue) */}
       <mesh ref={localPlayerRef} position={[0, -100, 0]}>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial color="#00ffff" />
+        <meshBasicMaterial color="#00ffff" />
       </mesh>
 
       {/* Remote Players (Red) - Managed by ref */}
