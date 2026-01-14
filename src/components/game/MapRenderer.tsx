@@ -65,58 +65,86 @@ export function MapRenderer() {
     if (!levelData || !wallsRef.current || !floorsRef.current) return;
     if (counts.walls === 0 && counts.floors === 0) return;
 
+    // Safe Mode: Set render count to actual, but cap at 5000 (buffer size)
+    const MAX_INSTANCES = 5000;
+    wallsRef.current.count = Math.min(counts.walls, MAX_INSTANCES);
+    floorsRef.current.count = Math.min(counts.floors, MAX_INSTANCES);
+
     const rooms = levelData.rooms;
     let wIndex = 0;
     let fIndex = 0;
 
-    for (const room of rooms) {
-      const template = TEMPLATES[room.templateId];
-      if (!template) continue;
+    console.log(`[MapRenderer] Starting Matrix Update. Walls: ${counts.walls}, Floors: ${counts.floors}. Capped at ${MAX_INSTANCES}.`);
 
-      // Calculate Room Origin (Top-Left of the grid) in World Space
-      // Room Coords (x,y) * (12 tiles * 2 meters)
-      const roomWorldX = room.x * ROOM_SIZE * TILE_SIZE;
-      const roomWorldZ = room.y * ROOM_SIZE * TILE_SIZE;
+    try {
+      for (const room of rooms) {
+        const template = TEMPLATES[room.templateId];
+        if (!template) continue;
 
-      for (let r = 0; r < ROOM_SIZE; r++) {
-        for (let c = 0; c < ROOM_SIZE; c++) {
-          const tile = template.layout[r][c];
+        // Calculate Room Origin (Top-Left of the grid) in World Space
+        // Room Coords (x,y) * (12 tiles * 2 meters)
+        const roomWorldX = room.x * ROOM_SIZE * TILE_SIZE;
+        const roomWorldZ = room.y * ROOM_SIZE * TILE_SIZE;
 
-          // Calculate Tile Center
-          const tileCenterX = roomWorldX + (c * TILE_SIZE) + (TILE_SIZE / 2);
-          const tileCenterZ = roomWorldZ + (r * TILE_SIZE) + (TILE_SIZE / 2);
+        for (let r = 0; r < ROOM_SIZE; r++) {
+          for (let c = 0; c < ROOM_SIZE; c++) {
+            const tile = template.layout[r][c];
 
-          tempMatrix.identity();
-
-          // Safety Check: Skip invalid coordinates
-          if (!Number.isFinite(tileCenterX) || !Number.isFinite(tileCenterZ)) {
-             console.error(`[MapRenderer] Invalid coordinates detected: ${tileCenterX}, ${tileCenterZ}. Hiding instance.`);
-             // Collapse instance to 0 size so it is invisible, rather than skipping (which leaves it at 0,0,0)
-             tempMatrix.makeScale(0, 0, 0);
-          } else {
-              // Valid Coordinate Calculation
-              if (tile === TileType.WALL) {
-                tempMatrix.setPosition(tileCenterX, WALL_Y, tileCenterZ);
-              } else {
-                tempMatrix.makeRotationX(-Math.PI / 2);
-                tempMatrix.setPosition(tileCenterX, 0, tileCenterZ);
-              }
-          }
-
-          // Apply Matrix
-          if (tile === TileType.WALL) {
-            if (wIndex < counts.walls) {
-                wallsRef.current.setMatrixAt(wIndex, tempMatrix);
-                wIndex++;
+            // Loop Guard: Stop if we exceed buffer
+            if (tile === TileType.WALL && wIndex >= MAX_INSTANCES) {
+                console.warn('[MapRenderer] Max WALL instance limit reached!');
+                break;
             }
-          } else {
-            if (fIndex < counts.floors) {
-                floorsRef.current.setMatrixAt(fIndex, tempMatrix);
-                fIndex++;
+            if (tile !== TileType.WALL && fIndex >= MAX_INSTANCES) {
+                console.warn('[MapRenderer] Max FLOOR instance limit reached!');
+                break;
+            }
+
+            // Calculate Tile Center
+            const tileCenterX = roomWorldX + (c * TILE_SIZE) + (TILE_SIZE / 2);
+            const tileCenterZ = roomWorldZ + (r * TILE_SIZE) + (TILE_SIZE / 2);
+
+            tempMatrix.identity();
+
+            // Safety Check: Skip invalid coordinates
+            if (!Number.isFinite(tileCenterX) || !Number.isFinite(tileCenterZ)) {
+               console.error(`[MapRenderer] Invalid coordinates detected: ${tileCenterX}, ${tileCenterZ}. Hiding instance.`);
+               continue;
+            } else {
+                // Valid Coordinate Calculation
+                if (tile === TileType.WALL) {
+                  tempMatrix.setPosition(tileCenterX, WALL_Y, tileCenterZ);
+                } else {
+                  tempMatrix.makeRotationX(-Math.PI / 2);
+                  tempMatrix.setPosition(tileCenterX, 0, tileCenterZ);
+                }
+            }
+
+            // Apply Matrix
+            if (tile === TileType.WALL) {
+              if (wIndex < MAX_INSTANCES) {
+                  wallsRef.current.setMatrixAt(wIndex, tempMatrix);
+                  // Log progress
+                  if (wIndex % 100 === 0) {
+                      console.log(`[MapRenderer] Processing wall ${wIndex}/${counts.walls} at ${tileCenterX},${tileCenterZ}.`);
+                  }
+                  wIndex++;
+              }
+            } else {
+              if (fIndex < MAX_INSTANCES) {
+                  floorsRef.current.setMatrixAt(fIndex, tempMatrix);
+                   // Log progress
+                   if (fIndex % 100 === 0) {
+                      console.log(`[MapRenderer] Processing floor ${fIndex}/${counts.floors} at ${tileCenterX},${tileCenterZ}.`);
+                  }
+                  fIndex++;
+              }
             }
           }
         }
       }
+    } catch (e) {
+        console.error("[MapRenderer] CRITICAL ERROR during matrix update:", e);
     }
 
     wallsRef.current.instanceMatrix.needsUpdate = true;
@@ -131,8 +159,8 @@ export function MapRenderer() {
       {/* Walls */}
       <instancedMesh
         ref={wallsRef}
-        args={[undefined, undefined, counts.walls]}
-        frustumCulled={false} // Optimization: manual culling? For now disable to prevent popping
+        args={[undefined, undefined, 5000]} // Hardcoded Buffer Size
+        frustumCulled={false}
       >
         <boxGeometry args={[TILE_SIZE, WALL_HEIGHT, TILE_SIZE]} />
         <meshStandardMaterial color={COLOR_WALL} />
@@ -141,7 +169,7 @@ export function MapRenderer() {
       {/* Floors */}
       <instancedMesh
         ref={floorsRef}
-        args={[undefined, undefined, counts.floors]}
+        args={[undefined, undefined, 5000]} // Hardcoded Buffer Size
         frustumCulled={false}
       >
         <planeGeometry args={[TILE_SIZE, TILE_SIZE]} />
