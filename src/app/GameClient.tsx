@@ -15,6 +15,7 @@ import { Minitel } from "../components/effects/MinitelEffect";
 import { MainMenu } from "../components/ui/MainMenu";
 import { HUD } from "../components/ui/HUD";
 import { useLobbyStore, LobbyState } from "../stores/lobbyStore";
+import { DebugGL } from "../components/debug/DebugGL";
 import * as THREE from 'three';
 
 // Add THREE to global for debugging
@@ -39,6 +40,7 @@ export default function GameClient() {
             {/* <pointLight position={[10, 10, 10]} /> */}
 
             <SFXPool />
+            <DebugGL />
 
             <DebugInput />
             <NetworkedWorld />
