@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useNetworkGame } from "../../lib/network/useNetworkGame";
 import * as THREE from "three";
@@ -37,8 +37,17 @@ export function NetworkedWorld() {
   // const goreRef = useRef<GoreSystemHandle>(null);
 
   // Shared Resources (Optimization)
+  // Memory Optimization: Geometry and Material Reuse
   const remoteGeometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
   const remoteMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: 'red' }), []);
+
+  // Cleanup Shared Resources on Unmount
+  useEffect(() => {
+    return () => {
+      remoteGeometry.dispose();
+      remoteMaterial.dispose();
+    };
+  }, [remoteGeometry, remoteMaterial]);
 
   // Tracers State (Local visual only)
   const tracersRef = useRef<Tracer[]>([]);
@@ -51,18 +60,34 @@ export function NetworkedWorld() {
   const lastFireTimeRef = useRef(0);
   const collisionHelper = useMemo(() => levelData ? new CollisionHelper(levelData) : null, [levelData]);
 
+  // Reusable Objects for Raycasting/Math (GC Optimization)
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const mouseVecRef = useRef(new THREE.Vector2());
+  const planeRef = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const targetVecRef = useRef(new THREE.Vector3());
+
   useFrame((state, delta) => {
     const now = state.clock.elapsedTime * 1000; // ms
 
     // --- 1. Screen Shake (Trauma) ---
+    // Safety check: ensure trauma is finite
+    if (!Number.isFinite(traumaRef.current)) {
+      traumaRef.current = 0;
+    }
+
     if (traumaRef.current > 0) {
       const shake = traumaRef.current * traumaRef.current;
       const maxAngle = 10 * (Math.PI / 180);
       const maxOffset = 0.5; // Meters
 
-      const angle = (Math.random() * 2 - 1) * maxAngle * shake;
-      const offsetX = (Math.random() * 2 - 1) * maxOffset * shake;
-      const offsetY = (Math.random() * 2 - 1) * maxOffset * shake;
+      let angle = (Math.random() * 2 - 1) * maxAngle * shake;
+      let offsetX = (Math.random() * 2 - 1) * maxOffset * shake;
+      let offsetY = (Math.random() * 2 - 1) * maxOffset * shake;
+
+      // NaN Guard for camera safety
+      if (!Number.isFinite(angle)) angle = 0;
+      if (!Number.isFinite(offsetX)) offsetX = 0;
+      if (!Number.isFinite(offsetY)) offsetY = 0;
 
       camera.rotation.z = angle;
       camera.position.x += offsetX - shakeRef.current.x; // Apply delta
@@ -83,27 +108,33 @@ export function NetworkedWorld() {
 
     // --- 2. Input & LookAt ---
     if (gameState.localPlayer && localPlayerRef.current) {
+      // NaN Guard for Player Position
+      const lx = Number.isFinite(gameState.localPlayer.x) ? gameState.localPlayer.x : 0;
+      const ly = Number.isFinite(gameState.localPlayer.y) ? gameState.localPlayer.y : 0;
+
       // Update position from prediction
-      localPlayerRef.current.position.set(gameState.localPlayer.x, 0.5, gameState.localPlayer.y);
+      localPlayerRef.current.position.set(lx, 0.5, ly);
 
       // Calculate Angle based on Mouse
-      const raycaster = new THREE.Raycaster();
-      // Assuming inputStore gives NDC (-1 to 1) for aim.
-      // If logic in inputStore differs, we adjust.
-      // Based on `useInputStore`, `aim` is Vector2.
-      const mouse = new THREE.Vector2(getInputState().aim.x, getInputState().aim.y);
+      const raycaster = raycasterRef.current;
+      const mouse = mouseVecRef.current;
+      const inputAim = getInputState().aim;
+      mouse.set(inputAim.x, inputAim.y);
 
       raycaster.setFromCamera(mouse, camera);
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const target = new THREE.Vector3();
+      const plane = planeRef.current;
+      const target = targetVecRef.current;
       raycaster.ray.intersectPlane(plane, target);
 
       if (target) {
-        const dx = target.x - gameState.localPlayer.x;
-        const dy = target.z - gameState.localPlayer.y;
+        const dx = target.x - lx;
+        const dy = target.z - ly;
         const angle = Math.atan2(dy, dx);
-        gameState.localPlayer.angle = angle;
-        localPlayerRef.current.rotation.y = -angle;
+
+        if (Number.isFinite(angle)) {
+           gameState.localPlayer.angle = angle;
+           localPlayerRef.current.rotation.y = -angle;
+        }
       }
 
       // --- Client Prediction: Shooting ---
@@ -114,9 +145,9 @@ export function NetworkedWorld() {
           lastFireTimeRef.current = now;
 
           // Predict Local Shot
-          const startX = gameState.localPlayer.x;
-          const startY = gameState.localPlayer.y;
-          const angle = gameState.localPlayer.angle;
+          const startX = lx;
+          const startY = ly;
+          const angle = Number.isFinite(gameState.localPlayer.angle) ? gameState.localPlayer.angle : 0;
 
           // Spread application (Client Prediction)
           const spread = weapon.spread;
@@ -130,20 +161,25 @@ export function NetworkedWorld() {
           let endY = startY + dirY * weapon.range;
 
           if (collisionHelper) {
-            const hit = raycast(startX, startY, dirX, dirY, weapon.range, collisionHelper);
-            if (hit) {
-              endX = hit.x;
-              endY = hit.y;
+            // Validate inputs to raycast
+            if (Number.isFinite(startX) && Number.isFinite(startY) && Number.isFinite(dirX) && Number.isFinite(dirY)) {
+               const hit = raycast(startX, startY, dirX, dirY, weapon.range, collisionHelper);
+               if (hit) {
+                 endX = hit.x;
+                 endY = hit.y;
+               }
             }
           }
 
-          // Add Tracer
-          tracersRef.current.push({
-            id: Math.random().toString(),
-            startX, startY, endX, endY,
-            spawnTime: state.clock.elapsedTime,
-            color: '#ffff00'
-          });
+          // Add Tracer (Guarded against NaN)
+          if (Number.isFinite(endX) && Number.isFinite(endY)) {
+              tracersRef.current.push({
+                id: Math.random().toString(),
+                startX, startY, endX, endY,
+                spawnTime: state.clock.elapsedTime,
+                color: '#ffff00'
+              });
+          }
 
           // Play Sound
           playSound('shoot' as SoundKey, [startX, 0, startY]); // TODO: Map weapon to sound
@@ -174,17 +210,19 @@ export function NetworkedWorld() {
         }
 
         // Add Tracer
-        const newTracer: Tracer = {
-          id: Math.random().toString(),
-          startX,
-          startY,
-          endX: evt.endX,
-          endY: evt.endY,
-          spawnTime: state.clock.elapsedTime,
-          color: '#ffff00' // Neon Yellow
-        };
+        if (Number.isFinite(startX) && Number.isFinite(startY) && Number.isFinite(evt.endX) && Number.isFinite(evt.endY)) {
+            const newTracer: Tracer = {
+              id: Math.random().toString(),
+              startX,
+              startY,
+              endX: evt.endX,
+              endY: evt.endY,
+              spawnTime: state.clock.elapsedTime,
+              color: '#ffff00' // Neon Yellow
+            };
 
-        tracersRef.current.push(newTracer);
+            tracersRef.current.push(newTracer);
+        }
 
         // Play Sound
         playSound('shoot' as SoundKey, [startX, 0, startY]);
@@ -196,31 +234,57 @@ export function NetworkedWorld() {
       // }
     }
 
-    // Clean up old tracers
+    // Clean up old tracers (GC Optimized: Swap-Remove-Like logic or In-Place Filter)
     const TRACER_DURATION = 0.1; // 100ms
-    tracersRef.current = tracersRef.current.filter(t => state.clock.elapsedTime - t.spawnTime < TRACER_DURATION);
+    const activeTracers: Tracer[] = [];
+    for (let i = 0; i < tracersRef.current.length; i++) {
+        if (state.clock.elapsedTime - tracersRef.current[i].spawnTime < TRACER_DURATION) {
+            activeTracers.push(tracersRef.current[i]);
+        }
+    }
+    // Only replace array if size changed (though creating new array still creates garbage,
+    // it's cleaner than in-place mutation for React refs usually, but here performance is key).
+    // Actually, `filter` creates a new array anyway.
+    // Ideally we use a ring buffer, but for < 100 items, `filter` or `push` is negligible.
+    // The previous implementation used `filter` every frame.
+    tracersRef.current = activeTracers;
 
     // Update Remote Players
     if (remotePlayersGroupRef.current) {
       const group = remotePlayersGroupRef.current;
-      const childrenMap = new Map<string, THREE.Object3D>();
-      group.children.forEach(c => childrenMap.set(c.name, c));
-
-      group.children.forEach(c => c.visible = false);
+      const activeIds = new Set<string>();
 
       gameState.otherPlayers.forEach(p => {
-        let mesh = childrenMap.get(p.id.toString());
-        if (!mesh) {
-          // Optimization: Reuse Geometry and Material
-          mesh = new THREE.Mesh(remoteGeometry, remoteMaterial);
-          mesh.name = p.id.toString();
-          group.add(mesh);
-        }
+         activeIds.add(p.id.toString());
+         let mesh = group.getObjectByName(p.id.toString()) as THREE.Mesh;
 
-        mesh.visible = true;
-        mesh.position.set(p.x, 0.5, p.y);
-        mesh.rotation.y = -p.angle;
+         if (!mesh) {
+           // Optimization: Reuse Geometry and Material
+           mesh = new THREE.Mesh(remoteGeometry, remoteMaterial);
+           mesh.name = p.id.toString();
+           group.add(mesh);
+         }
+
+         mesh.visible = true;
+         // NaN Guard
+         const px = Number.isFinite(p.x) ? p.x : 0;
+         const py = Number.isFinite(p.y) ? p.y : 0;
+         const pa = Number.isFinite(p.angle) ? p.angle : 0;
+
+         mesh.position.set(px, 0.5, py);
+         mesh.rotation.y = -pa;
       });
+
+      // Cleanup disconnected players (Memory Leak Fix)
+      // Iterate backwards to safely remove
+      for (let i = group.children.length - 1; i >= 0; i--) {
+         const child = group.children[i];
+         if (!activeIds.has(child.name)) {
+            group.remove(child);
+            // Since geometry/material are shared/managed globally in this component,
+            // we do NOT dispose them here.
+         }
+      }
     }
   });
 
@@ -269,15 +333,21 @@ function TracerRenderer({ tracersRef }: { tracersRef: React.MutableRefObject<Tra
       const t = tracers[i];
       const idx = i * 6; // 2 vertices per line, 3 floats per vertex
 
+      // NaN Guard: Ensure we never write NaN to the buffer
+      const sx = Number.isFinite(t.startX) ? t.startX : 0;
+      const sy = Number.isFinite(t.startY) ? t.startY : 0;
+      const ex = Number.isFinite(t.endX) ? t.endX : 0;
+      const ey = Number.isFinite(t.endY) ? t.endY : 0;
+
       // Start Point
-      positions[idx] = t.startX;
+      positions[idx] = sx;
       positions[idx + 1] = 0.5;
-      positions[idx + 2] = t.startY;
+      positions[idx + 2] = sy;
 
       // End Point
-      positions[idx + 3] = t.endX;
+      positions[idx + 3] = ex;
       positions[idx + 4] = 0.5;
-      positions[idx + 5] = t.endY;
+      positions[idx + 5] = ey;
     }
 
     // Tell Three.js to upload the new data

@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 
 const MAX_SPLATTERS = 2000;
@@ -67,6 +67,13 @@ export const GoreSystem = forwardRef<GoreSystemHandle, {}>((_, ref) => {
 
   // Generate texture once
   const bloodTexture = useMemo(() => generateBloodTexture(), []);
+
+  // Cleanup texture on unmount
+  useEffect(() => {
+    return () => {
+      bloodTexture.dispose();
+    };
+  }, [bloodTexture]);
 
   useImperativeHandle(ref, () => ({
     addSplatter: (x: number, y: number) => {
