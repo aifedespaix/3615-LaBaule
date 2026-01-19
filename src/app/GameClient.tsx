@@ -34,7 +34,15 @@ export default function GameClient() {
       {/* 3D Scene - Only render if GAME or CONNECTING (to preload) */}
       {(lobbyState === LobbyState.GAME || lobbyState === LobbyState.CONNECTING) && (
         <div className="absolute inset-0 z-0">
-          <Canvas>
+          <Canvas
+            gl={{
+              antialias: false,        // CRITICAL: Disables MSAA (saves 4x memory)
+              powerPreference: 'low-power', // CRITICAL: Prevents driver switching crashes
+              depth: true,
+              stencil: false,           // Optimization
+              alpha: false              // Optimization
+            }}
+          >
             <color attach="background" args={["#101015"]} />
             <ambientLight intensity={0.5} />
             {/* <pointLight position={[10, 10, 10]} /> */}

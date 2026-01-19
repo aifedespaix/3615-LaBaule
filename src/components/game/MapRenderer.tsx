@@ -8,7 +8,7 @@ import { ROOM_SIZE } from '@3615/shared/maps/constants'
 // Constants
 const TILE_SIZE = 2 // 2 meters per tile
 const WALL_HEIGHT = 3 // 3 meters tall
-const MAX_INSTANCES = 1000 // Reduced from 5000 for safety (Progressive Rendering)
+const MAX_INSTANCES = 300 // Reduced from 5000 for safety (Progressive Rendering)
 
 export function MapRenderer() {
   const levelData = useLevelStore(state => state.levelData)
@@ -121,16 +121,15 @@ export function MapRenderer() {
   return (
     <group>
       {/* WALLS: BoxGeometry 2x3x2 */}
-      {/* Debug: Cyan Wireframe to reduce fill rate */}
       <instancedMesh ref={wallMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <boxGeometry args={[TILE_SIZE, WALL_HEIGHT, TILE_SIZE]} />
-        <meshBasicMaterial color="#00ffff" wireframe />
+        <meshBasicMaterial color="#00ffff" />
       </instancedMesh>
 
       {/* FLOORS: PlaneGeometry 2x2 */}
       <instancedMesh ref={floorMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <planeGeometry args={[TILE_SIZE, TILE_SIZE]} />
-        <meshBasicMaterial color="#222222" />
+        <meshBasicMaterial color="#ff0000" />
       </instancedMesh>
     </group>
   )
