@@ -1,5 +1,5 @@
-import { useMemo, useLayoutEffect, useRef } from 'react'
-import { Object3D, InstancedMesh, Color } from 'three'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { Object3D, InstancedMesh } from 'three'
 import { useLevelStore } from '../../stores/levelStore'
 import { TEMPLATES } from '@3615/shared/maps/templates/registry'
 import { TileType } from '@3615/shared/maps/types'
@@ -8,7 +8,7 @@ import { ROOM_SIZE } from '@3615/shared/maps/constants'
 // Constants
 const TILE_SIZE = 2 // 2 meters per tile
 const WALL_HEIGHT = 3 // 3 meters tall
-const MAX_INSTANCES = 5000 // Hard limit to prevent buffer overflows
+const MAX_INSTANCES = 300 // Reduced from 5000 for safety (Progressive Rendering)
 
 export function MapRenderer() {
   const levelData = useLevelStore(state => state.levelData)
@@ -17,17 +17,16 @@ export function MapRenderer() {
   const wallMeshRef = useRef<InstancedMesh>(null)
   const floorMeshRef = useRef<InstancedMesh>(null)
 
-  // Memoize geometry counts to avoid re-calculating on every render
-  // This is purely for debug/logging, the actual count is dynamic
-  const counts = useMemo(() => {
-    if (!levelData) return { walls: 0, floors: 0 }
-    // We could pre-calculate exact counts here if we wanted to match args perfectly,
-    // but we use a fixed capacity for safety.
-    return { walls: 0, floors: 0 }
-  }, [levelData])
+  const [ready, setReady] = useState(false)
 
-  useLayoutEffect(() => {
-    if (!levelData || !wallMeshRef.current || !floorMeshRef.current) return
+  // Delay mount to let the browser breathe (GPU Timeout Prevention)
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 500)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    if (!ready || !levelData || !wallMeshRef.current || !floorMeshRef.current) return
 
     const walls = wallMeshRef.current
     const floors = floorMeshRef.current
@@ -36,13 +35,15 @@ export function MapRenderer() {
     let wallCount = 0
     let floorCount = 0
 
+    console.log('[MapRenderer] Starting generation...')
+
     try {
       // Iterate through all rooms
-      levelData.rooms.forEach(room => {
+      outerLoop: for (const room of levelData.rooms) {
         const template = TEMPLATES[room.templateId]
         if (!template) {
           console.warn(`[MapRenderer] Missing template for room ${room.id} (${room.templateId})`)
-          return
+          continue
         }
 
         // Room Origin in World Space
@@ -51,26 +52,36 @@ export function MapRenderer() {
         const roomOriginY = room.y * ROOM_SIZE * TILE_SIZE
 
         // Iterate through 12x12 grid
-        template.layout.forEach((row, rY) => {
-          row.forEach((tile, rX) => {
+        for (let rY = 0; rY < template.layout.length; rY++) {
+          const row = template.layout[rY]
+          for (let rX = 0; rX < row.length; rX++) {
+            // Optimization: Stop if we hit the limit
+            if (wallCount >= MAX_INSTANCES && floorCount >= MAX_INSTANCES) {
+               break outerLoop;
+            }
+
+            const tile = row[rX]
+
              // Calculate World Position for this Tile
              // rX is local grid X, rY is local grid Y
              const x = roomOriginX + (rX * TILE_SIZE)
              const z = roomOriginY + (rY * TILE_SIZE)
 
-             // 1. FLOOR (Everywhere except explicit holes if any? Assuming everywhere for now)
-             // Check capacity
+             // Strict NaN Protection
+             if (!Number.isFinite(x) || !Number.isFinite(z)) {
+               console.warn('[MapRenderer] Skipping invalid coordinate:', x, z);
+               continue;
+             }
+
+             // 1. FLOOR (Everywhere)
              if (floorCount < MAX_INSTANCES) {
                dummy.position.set(x, 0, z) // Floor at Y=0
-               dummy.rotation.set(-Math.PI / 2, 0, 0) // Rotate to be flat (PlaneGeometry is XY aligned)
+               dummy.rotation.set(-Math.PI / 2, 0, 0) // Rotate to be flat
                dummy.scale.set(1, 1, 1)
                dummy.updateMatrix()
 
-               // Verify matrix is valid
-               if (isValidMatrix(dummy.matrix.elements)) {
-                 floors.setMatrixAt(floorCount, dummy.matrix)
-                 floorCount++
-               }
+               floors.setMatrixAt(floorCount, dummy.matrix)
+               floorCount++
              }
 
              // 2. WALLS
@@ -81,56 +92,45 @@ export function MapRenderer() {
                    dummy.scale.set(1, 1, 1)
                    dummy.updateMatrix()
 
-                   if (isValidMatrix(dummy.matrix.elements)) {
-                      walls.setMatrixAt(wallCount, dummy.matrix)
-                      wallCount++
-                   }
+                   walls.setMatrixAt(wallCount, dummy.matrix)
+                   wallCount++
                 }
              }
-          })
-        })
-      })
+          }
+        }
+      }
 
       // Update Instance Counts
       walls.count = wallCount
       floors.count = floorCount
 
-      // Notify Three.js to update buffers
+      // Buffer Flush: Notify Three.js to update buffers ONCE
       walls.instanceMatrix.needsUpdate = true
       floors.instanceMatrix.needsUpdate = true
 
-      console.log(`[MapRenderer] Generated ${wallCount} walls and ${floorCount} floors.`)
+      console.log(`[MapRenderer] Safe Render: ${wallCount} walls, ${floorCount} floors`)
 
     } catch (e) {
       console.error('[MapRenderer] Error generating map geometry:', e)
     }
 
-  }, [levelData])
+  }, [levelData, ready])
 
-  if (!levelData) return null
+  if (!ready || !levelData) return null
 
   return (
     <group>
       {/* WALLS: BoxGeometry 2x3x2 */}
-      {/* Note: args are Width, Height, Depth */}
       <instancedMesh ref={wallMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <boxGeometry args={[TILE_SIZE, WALL_HEIGHT, TILE_SIZE]} />
-        <meshBasicMaterial color="#ff00ff" />
+        <meshBasicMaterial color="#00ffff" />
       </instancedMesh>
 
       {/* FLOORS: PlaneGeometry 2x2 */}
       <instancedMesh ref={floorMeshRef} args={[undefined, undefined, MAX_INSTANCES]} frustumCulled={false}>
         <planeGeometry args={[TILE_SIZE, TILE_SIZE]} />
-        <meshBasicMaterial color="#222222" />
+        <meshBasicMaterial color="#ff0000" />
       </instancedMesh>
     </group>
   )
-}
-
-// Helper to prevent NaN propagation to GPU
-function isValidMatrix(elements: number[]): boolean {
-  for (let i = 0; i < elements.length; i++) {
-    if (!Number.isFinite(elements[i])) return false
-  }
-  return true
 }
